@@ -1,0 +1,740 @@
+Зад. 80 2016-SE-01
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <stdint.h>
+int main(const int argc, char* argv[])
+{
+    if (argc != 2){
+        err(1, "argc");
+    }
+    int a[2];
+    if (pipe(a) == -1){
+        err(2, "pipe");
+    }
+    pid_t p1 = fork();
+    if (p1 == -1){
+        err(3, "fork");
+    }
+    if (p1 == 0){
+        close(a[0]);
+        if (dup2(a[1], 1) == -1){
+            err(4, "dup2");
+        }
+        if (execlp("cat", "cat", argv[1], (char*)NULL) == -1){
+            err(5, "execlp");
+        }
+    }
+    close(a[1]);
+    if (dup2(a[0], 0) == -1){
+        err(6, "dup2");
+    }
+    if (execlp("sort", "sort", (char*)NULL) == -1){
+        err(7, "execlp");
+    }
+    exit(0);
+}
+
+Зад. 81 2016-SE-02
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+#include <sys/wait.h>
+int main(const int argc, char* argv[])
+{
+    if (argc != 1){
+        err(1, "argc");
+    }
+    char command[20];
+    int size = 0;
+    while(1){
+        if (write(1, "prompt:~$ ", 10) == -1){
+            err(5, "write");
+        }
+        if ((size = read(0, &command, sizeof(command))) != strlen(command)){
+            err(6, "read");
+        }
+        command[size - 1] = '\0';
+        if (strcmp(command, "exit") == 0){
+            break;
+        }
+        char path[] = "/bin/";
+        strcat(path, command);
+        pid_t pid = fork();
+        if (pid == -1){
+            err(3, "fork");
+        }
+        if (pid == 0){
+            if (execl(path, command, (char*)NULL) == -1){
+                err(2, "execl");
+            }
+        }
+        int status;
+        if (wait(&status) == -1){
+            err(4, "wait");
+        }
+    }
+    exit(0);
+}
+
+Зад. 82 2017-IN-01
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdbool.h>
+int main(const int argc, char* argv[])
+{
+    if (argc != 1){
+        err(17, "argc");
+    }
+    int a[2];
+    if (pipe(a) == -1){
+        err(1, "pipe");
+    }
+    pid_t p1 = fork();
+    if (p1 == -1){
+        err(2, "fork");
+    }
+    if (p1 == 0){
+        close(a[0]);
+        if (dup2(a[1], 1) == -1){
+            err(3, "dup2");
+        }
+        if (execlp("cut", "cut", "-d:", "-f7", "/etc/passwd", (char*)NULL) == -1){
+            err(4, "execlp");
+        }
+    }
+    close(a[1]);
+    int b[2];
+    if (pipe(b) == -1){
+        err(5, "pipe");
+    }
+    pid_t p2 = fork();
+    if (p2 == -1){
+        err(6, "fork");
+    }
+    if (p2 == 0){
+        close(b[0]);
+        if (dup2(a[0], 0) == -1){
+            err(7, "dup2");
+        }
+        if (dup2(b[1], 1) == -1){
+            err(8, "dup2");
+        }
+        if (execlp("sort", "sort", (char*)NULL) == -1){
+            err(9, "execlp");
+        }
+    }
+    close(b[1]);
+    	
+    int c[2];
+    if (pipe(c) == -1){
+        err(10, "pipe");
+    }
+    pid_t p3 = fork();
+    if (p3 == -1){
+        err(11, "fork");
+    }
+    if (p3 == 0){
+        close(c[0]);
+        if (dup2(b[0], 0) == -1){
+            err(12, "dup2");
+        }
+        if (dup2(c[1], 1) == -1){
+            err(13, "dup2");
+        }
+        if (execlp("uniq", "uniq", "-c", (char*)NULL) == -1){
+            err(14, "execlp");
+        }
+    }
+    close(b[0]);
+    close(c[1]);
+    if (dup2(c[0], 0) == -1){
+        err(15, "dup2");
+    }
+    if (execlp("sort", "sort", (char*)NULL) == -1){
+        err(16, "execlp");
+    }
+    exit(0);
+}
+
+Зад. 83 2017-IN-02
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+#include <sys/wait.h>
+int main(const int argc, char* argv[])
+{
+    if (argc < 1){
+        err(1, "argc");
+    }
+    char cmd[5] = "echo";
+    if (argc > 1){
+        if (strlen(argv[1]) > 4){
+            errx(2, "too long command");
+        }
+        strcpy(cmd, argv[1]);
+    }
+    char param1[5], param2[5];
+    char c;
+    int ind1 = 0, ind2 = 0, readingSecondArg = 0, sz;
+    while((sz = read(0, &c, sizeof(c))) == sizeof(c)){
+        if (c != 0x20 && c != 0x0A)
+        {
+            if (readingSecondArg == 0 && ind1 < 4)
+            {
+                param1[ind1++] = c;
+            }
+            else if (readingSecondArg == 1 && ind2 < 4)
+            {
+                param2[ind2++] = c;
+            }
+            else if (ind1 == 4 || ind2 == 4){
+                errx(3, "too long argument");
+            }
+        }
+        else
+        {
+            if (readingSecondArg == 0){
+                readingSecondArg = 1;
+            }
+            else if (readingSecondArg == 1)
+            {
+                pid_t pid1 = fork();
+                if (pid1 == -1){
+                    err(5, "fork");
+                }
+                if (pid1 == 0){
+                    if (execlp(cmd, cmd, param1, param2, (char*)NULL) == -1){
+                        err(6, "execlp");
+                    }
+                }
+                int status;
+                if (wait(&status) == -1){
+                    err(7, "wait");
+                }
+                strcpy(param1, "");
+                strcpy(param2, "");
+                ind1 = 0;
+                ind2 = 0;
+                readingSecondArg = 0;
+            }
+        }
+    }
+    if (sz == -1){
+        err(4, "read");
+    }
+    if (ind1 != 0){
+        if (execlp(cmd, cmd, param1, (char*)NULL) == -1){
+            err(8, "execlp");
+        }
+    }
+    exit(0);
+}
+
+Зад. 84 2018-SE-01
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdbool.h>
+int main(const int argc, char* argv[])
+{
+    if (argc != 2){
+        err(1, "argc");
+    }
+    int a[2];
+    if (pipe(a) == -1){
+        err(2, "pipe");
+    }
+    pid_t p1 = fork();
+    if (p1 == -1){
+        err(3, "fork");
+    }
+    if (p1 == 0){
+        close(a[0]);
+        if (dup2(a[1], 1) == -1){
+            err(4, "dup2");
+        }
+        if (execlp("find", "find", argv[1], "-type", "f", "-printf", "%T@:%f\n", (char*)NULL) == -1){
+            err(5, "execl");
+        }
+    }
+    close(a[1]);
+    int b[2];
+    if (pipe(b) == -1){
+        err(6, "pipe");
+    }
+    pid_t p2 = fork();
+    if (p2 == -1){
+        err(7, "fork");
+    }
+    if (p2 == 0){
+        close(b[0]);
+        if (dup2(a[0], 0) == -1){
+            err(8, "dup2");
+        }
+        if (dup2(b[1], 1) == -1){
+            err(9, "dup2");
+        }
+        if (execlp("sort", "sort", "-n", "-k1,1", (char*)NULL) == -1){
+            err(10, "execl");
+        }
+    }
+    close(b[1]);
+    close(a[0]);
+    int c[2];
+    if (pipe(c) == -1){
+        err(11, "pipe");
+    }
+    pid_t p3 = fork();
+    if (p3 == -1){
+        err(12, "fork");
+    }
+    if (p3 == 0){
+        close(c[0]);
+        if (dup2(b[0], 0) == -1){
+            err(13, "dup2");
+        }
+        if (dup2(c[1], 1) == -1){
+            err(14, "dup2");
+        }
+        if (execlp("tail", "tail", "-n1", (char*)NULL) == -1){
+            err(15, "execlp");
+        }
+    }
+    close(c[1]);
+    close(b[0]);
+    if (dup2(c[0], 0) == -1){
+        err(16, "dup2");
+    }
+    if (execlp("cut", "cut", "-d:", "-f2", (char*)NULL) == -1){
+        err(17, "execlp");
+    }
+    exit(0);
+}
+
+Зад. 85 2019-SE-01
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+#include <sys/wait.h>
+#include <time.h>
+int main(const int argc, char* argv[])
+{
+    if (argc < 3){
+        err(1, "argc");
+    }
+    int fd;
+    int limit = *argv[1] - '0';
+    if (limit < 1 || limit > 9){
+        errx(2, "wrong limit number");
+    }
+    const int size = argc - 2 + 1;
+    char* args[size];
+    for(int i=2; i<argc; i++){
+        args[i-2] = argv[i];
+    }
+    args[size - 1] = (char*)NULL;
+    int oldCondition, newCondition = 0;
+    while(1){
+        pid_t pid = fork();
+        if (pid == -1){
+            err(3, "fork");
+        }
+        int start = time(NULL), finish;
+        if (pid == 0){
+            if (execvp(argv[2], args) == -1){
+                err(4, "execvp");
+            }
+        }
+        int status;
+        if (wait(&status) == -1){
+            err(5, "wait");
+        }
+        finish = time(NULL);
+        int exitCode = WIFEXITED(status) ? WEXITSTATUS(status) : 129;
+        if ((fd = open("run.log", O_WRONLY | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR)) == -1){
+            err(6, "open");
+        }
+        char buffer[100];
+        snprintf(buffer, sizeof(buffer), "%d %d %d", start, finish, exitCode);
+        if (write(fd, &buffer, sizeof(buffer)) != sizeof(buffer)){
+            err(7, "write");
+        }
+        close(fd);
+        oldCondition = newCondition;
+        newCondition = WEXITSTATUS(status) != 0 && finish - start < limit;
+        if (oldCondition == 1 && newCondition == 1)
+        {
+            break;
+        }
+    }
+    exit(0);
+}
+
+Зад. 86 2020-SE-01
+foo code:
+
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+#include <sys/wait.h>
+#include <time.h>
+#include <sys/types.h>
+int main(const int argc, char* argv[])
+{
+    if (argc != 2){
+        errx(1, "argc");
+    }
+    int fd;
+    const char* fifo = "fifo";
+    mkfifo(fifo, 0666);
+    if ((fd = open(fifo, O_WRONLY)) == -1){
+        err(2, "open");
+    }
+    if (dup2(fd, 1) == -1){
+        err(3, "dup2");
+    }
+    if (execlp("cat", "cat", argv[1], (char*)NULL) == -1){
+        err(4, "execl");
+    }
+    close(fd);
+    exit(0);
+}
+
+bar code:
+
+#include <fcntl.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <err.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+int main(const int argc, char* argv[])
+{
+    if (argc != 2){
+        errx(1, "argc");
+    }
+    const char* fifo = "../fifo";
+    int fd;
+    if ((fd = open(fifo, O_RDONLY)) == -1){
+        err(2, "open");
+    }
+    if (dup2(fd, 0) == -1){
+        err(3, "dup2");
+    }
+    if (execl(argv[1], argv[1], (char*)NULL) == -1){
+        err(4, "execl");
+    }
+    close(fd);
+    exit(0);
+}
+
+Зад. 87 2020-SE-02
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdbool.h>
+int main(const int argc, char* argv[])
+{
+    if (argc != 3){
+        errx(1, "argc");
+    }
+    int output;
+    if ((output = open(argv[2], O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR)) == -1){
+        err(2, "open");
+    }
+    int a[2];
+    if (pipe(a) == -1){
+        err(3, "pipe");
+    }
+    pid_t p = fork();
+    if (p == -1){
+        err(4, "fork");
+    }
+    if (p == 0){
+        close(a[0]);
+        if (dup2(a[1], 1) == -1){
+            err(5, "dup2");
+        }
+        if (execlp("cat", "cat", argv[1], (char*)NULL) == -1){
+            err(6, "execlp");
+        }
+    }
+    close(a[1]);
+    uint8_t c;
+    int sz;
+    while((sz = read(a[0], &c, 1)) == 1){
+        if (c == 0x7D){
+            if (read(a[0], &c, 1) != 1){
+                err(7, "read");
+            }
+            c = c ^ 0x20;
+	    if (c != 0x00 && c != 0xFF && c != 0x55 && c != 0x7D){
+		errx(9, "wrong byte");
+	    }
+            if (write(output, &c, 1) != 1){
+                err(8, "write");
+            }
+        }
+    }
+    if (sz == -1){
+        err(9, "read");
+    }
+    close(output);
+    exit(0);
+}
+
+Зад. 88 2020-SE-03 
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdbool.h>
+struct triple{
+    char name[8];
+    uint32_t offset;
+    uint32_t length;
+};
+int main(const int argc, char* argv[])
+{
+    if (argc != 2){
+        errx(1, "argc");
+    }
+    int fd;
+    if ((fd = open(argv[1], O_RDONLY)) == -1){
+        err(2, "open");
+    }
+    struct stat s;
+    if (fstat(fd, &s) == -1){
+        err(3, "fstat");
+    }
+    int size = s.st_size / 16;
+    struct triple arr[8];
+    for (int i=0; i<size; i++){
+        if (read(fd, &arr[i], sizeof(arr[i])) != sizeof(arr[i])){
+            err(4, "read");
+        }
+    }
+    int a[2];
+    if (pipe(a) == -1){
+        err(5, "pipe");
+    }
+    pid_t p = -1;
+    int i;
+    for (i=0; i<size; i++){
+        p = fork();
+        if (p == -1){
+            err(6, "fork");
+        }
+        if (p == 0)
+            break;
+    }
+    uint16_t num;
+    if (p == 0){
+        close(a[0]);
+        int currFd;
+        if ((currFd = open(arr[i].name, O_RDONLY)) == -1){
+            err(7, "open");
+        }
+        if (lseek(currFd, arr[i].offset, SEEK_SET) == -1){
+            err(8, "lseek");
+        }
+        for(uint32_t j=0; j<arr[i].length; j++){
+            if (read(currFd, &num, sizeof(num)) != sizeof(num)){
+                err(9, "read");
+            }
+            if (write(a[1], &num, sizeof(num)) != sizeof(num)){
+                err(10, "write");
+            }
+        }
+    }
+    else{
+        close(a[1]);
+        uint16_t res = 0;
+        int sz;
+        while((sz = read(a[0], &num, sizeof(num))) == sizeof(num)){
+            res = res ^ num;
+        }
+        if (sz == -1){
+            err(11, "read");
+        }
+        printf("result: %d\n", res);
+        close(fd);
+    }
+    exit(0);
+}
+
+Зад. 89 2021-SE-01
+
+Зад. 90 2022-IN-01
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+int main(const int argc, char* argv[])
+{
+    if (argc != 3){
+        errx(1, "argc");
+    }
+    int N = atoi(argv[1]);
+    int D = atoi(argv[2]);
+    const char* ding = "DING";
+    const char* dong = "DONG";
+    int cw[2];
+    int pw[2];
+    pipe(cw);
+    pipe(pw);
+    pid_t a = fork();
+    if (a == -1){
+        err(2, "fork");
+    }
+    if (a == 0){
+        close(cw[1]);
+        close(pw[0]);
+    }
+    else{
+        close(cw[0]);
+        close(pw[1]);
+    }
+    int dongLen = strlen(dong);
+    int dingLen = strlen(ding);
+    char c;
+    for (int i=0; i<N; i++){
+        if (a == 0){
+            if(read(cw[0], &c, 1) != 1){
+                err(3, "read");
+            }
+            if(write(1, dong, dongLen) != dongLen){
+                err(4, "write");
+            }
+            dprintf(1, "\n");
+            if(write(pw[1], &c, 1) != 1){
+                err(5, "write");
+            }
+        }
+        else {
+            if(write(1, ding, dingLen) != dingLen){
+                err(6, "write");
+            }
+            if(write(cw[1], &c, 1) != 1){
+                err(7, "write");
+            }
+            if(read(pw[0], &c, 1) != 1){
+                err(8, "read");
+            }
+            sleep(D);
+        }
+    }
+    exit(0);
+}
+
+Зад. 91 2023-IN-01
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+#include <sys/wait.h>
+#include <time.h>
+int main(int argc, char* argv[]){
+    if(argc != 3){
+        errx(1,"Args should be 2");
+    }
+    int NC = atoi(argv[1]);
+    int WC = atoi(argv[2]);
+    const char* list[]={"tic ", "tac ", "toe\n"};
+    int pipes[NC + 1][2];
+    for(int i = 0; i < NC + 1; i++){
+        pipe(pipes[i]);
+    }
+    int ind = 1;
+    dprintf(1, "%s", list[0]);
+    write(pipes[0][1], &ind, sizeof(ind));
+    pid_t pid = -1;
+    int i;
+    for(i=1; i<=NC; i++){
+        pid = fork();
+        if (pid == 0){
+            break;
+        }
+    }
+    if (pid != 0){
+        i = 0;
+    }
+    int pipeToWrite = i;
+    int pipeToRead = i - 1;
+    if (i == 0){
+        pipeToRead = NC;
+    }
+    for(int j=0; j<NC + 1; j++){
+        if (pipeToWrite != j){
+            close(pipes[j][1]);
+        }
+        if (pipeToRead != j){
+            close(pipes[j][0]);
+        }
+    }
+    while(1){
+        read(pipes[pipeToRead][0], &ind, sizeof(ind));
+        ind++;
+        if (ind > WC){
+            write(pipes[pipeToWrite][1], &ind, sizeof(ind));
+            break;
+        }
+        dprintf(1, "%s", list[(ind-1) % 3]);
+        write(pipes[pipeToWrite][1], &ind, sizeof(ind));
+    }
+    exit(0);
+}

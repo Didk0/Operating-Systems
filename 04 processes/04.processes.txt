@@ -1,0 +1,28 @@
+04-a-5000.txt
+ps -e -o comm --sort etime | tail -n 10
+
+04-a-6000.txt
+ps -e -o pid,cmd --sort vsz | tail -n 1
+
+04-a-6300.txt
+ps -e -o etime,cmd --sort etime | tail -n 1 | awk '{print $2}'
+
+04-b-5000.txt
+ps -G root -g root -o size | awk '{sum+=$1} END {print sum}'
+
+04-b-6100.txt
+ps -C vim -o user= --sort user | uniq -c | sort -n -k 1,1 | awk '$1>=2 {print $2}'
+
+04-b-6200.txt
+ps -U $(who | awk '{print $1}' | tr '\n' ',' | head -c -1) -u $(who | awk '{print $1}' | tr '\n' ',' | head -c -1) -N -o user= | sort | uniq
+
+04-b-7000.txt
+ps -u root -o size | awk '{count += 1 ; sum += $1} END { if (count != 0) print sum/count}'
+
+04-b-8000.txt
+I начин:
+ps -t - -o comm | sort | uniq
+II начин:
+ps -e -t - -o pid=,comm= --sort comm | uniq -f 1 -c | awk '{print $3}'
+
+04-b-9000.txt

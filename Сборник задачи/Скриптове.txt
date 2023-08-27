@@ -1,0 +1,1123 @@
+Зад.15 2016-SE-01
+#!/bin/bash
+if [ $# -ne 1 ]; then
+	echo "invalid number of arguments!"
+	exit 1
+fi
+if [ ! -d $1 ]; then 
+	echo "not a directory"
+	exit 1
+fi
+find -L $1 -type l 2>/dev/null
+
+Зад.16 2016-SE-0
+I начин:
+#!/bin/bash
+if [ $# -ne 1 ]; then
+	exit 1
+fi
+if [ $(id -u) -ne 0 ]; then
+	exit 2
+fi
+for u in $(ps -e -o user= | sort | uniq )
+do
+	maxpid=0
+	maxrss=0
+	resssum=0
+	while read p r; do
+		if [ $r -gt $maxrss ]; then
+			maxrss=$r
+			maxpid=$p
+		fi
+		rsssum=$((rsssum + r))
+	done < <(ps -u $u -o pid=,rss= | sort -n -k 2,2)
+#	echo "u: $u rsssum: $rsssum maxrss: $maxrss maxpid: $maxpid"
+	if [ $rsssum -gt $1 ]; then
+		kill -15 ${maxpid}
+		sleep 1
+		kill -9 ${maxpid}	
+	fi
+done
+------------------------------------------
+II начин:
+ #!/bin/bash
+if [ $# -ne 1 ]; then
+    echo "incorect number of arguments"
+    exit 1
+fi
+if [[ ! $1 =~ ^[0-9]+$ ]]; then
+    echo "not a number"
+    exit 2
+fi
+if [ $(id -u) -ne 0 ]; then
+    echo "not root"
+    exit 3
+fi
+T=$(mktemp)
+ps -e -o uid=,pid=,rss= > ${T}
+for u in $(awk '{print $1}' $T | sort | uniq); do
+    R=$(awk -v foo=$u '$1==foo {R=R+$3} END {print R}' ${T})
+    echo "$u $R"
+    if [ $R -le $1 ]; then
+        continue
+    fi
+    P=$(awk -v foo=$u '$1==foo {print $2,$3}' ${T} | sort -rn -k 2,2 | head -n 1 | awk '{print $1}')
+    kill -15 $P
+    sleep 2
+    kill -9 $P
+done
+rm -- $T
+
+Зад. 17 2016-SE-03
+#!/bin/bash
+if [ $# -ne 0 ]; then
+    echo "incorect number of arguments"
+    exit 1
+fi
+if [ $(id -u) -ne 0 ]; then
+    echo "not root"
+    exit 2
+fi
+U=$(mktemp)
+awk -F ':' '{print $1,$6}' /etc/passwd > ${U}
+for hd in $(cut -d ' ' -f 2 ${U}); do
+    if [[ -d ${hd} && -w ${hd} ]]; then
+        continue
+    fi
+    echo "user: "$(egrep "${hd}" ${U} | cut -d ' ' -f 1)""
+done
+rm -- $U
+
+Зад. 18 2016-SE-03
+#!/bin/bash
+if [ $# -ne 2 ]; then
+    echo "incorect number of arguments"
+    exit 1
+fi
+if [[ ! $1 =~ ^[0-9]+$ || ! $2 =~ ^[0-9]+$  ]]; then
+    echo "argument not a number"
+    exit 2
+fi
+mkdir -p a b c
+U=$(mktemp)
+for f in $(find . -type f -printf "%f\n"); do
+    R=$(cat ${f} | wc -l)
+    if [ ${R} -lt $1 ]; then
+        mv ${f} a/${f}
+    elif [[ ${R} -ge $1 && ${R} -le $2 ]]; then
+        mv ${f} b/${f}
+    else
+        mv ${f} c/${f}
+    fi
+done
+
+Зад. 19 2016-SE-04
+#!/bin/bash
+if [ $# -ne 2 ]; then
+    echo "incorect number of arguments"
+    exit 1
+fi
+R1=$(egrep -c "$1" $1)
+R2=$(egrep -c "$2" $2)
+W=$2
+if [ ${R1} -gt ${R2} ]; then
+    W=$1
+fi
+cat ${W} | cut -d '-' -f 2- | cut -c 2- | sort > "${W}.songs"
+
+Зад. 20 2016-SE-06
+#!/bin/bash
+if [ $# -ne 1 ]; then
+    echo "incorect number of arguments"
+    exit 1
+fi
+cut -d '-' -f 2- $1 | awk '{print NR". -"$0}' | sort -t '-' -k 2,2 | sed -E 's/ -//1'
+				// може с grep -n '.'
+
+Зад. 21 2017-IN-01
+ #!/bin/bash
+test $# -eq 3 || exit 1
+FILE=$1
+STR1=$2
+STR2=$3
+ROW1=$(grep "^$STR1=" $FILE)
+ROW2=$(grep "^$STR2=" $FILE)
+if test -z "$ROW2"; then
+    echo "$STR2=" >> $FILE
+    exit 0
+fi
+VALUE1=$(echo $ROW1 | cut -d "=" -f 2)
+VALUE2=$(echo $ROW2 | cut -d "=" -f 2)
+NEW2=$(comm -1 -3 <(echo $VALUE1 | xargs | tr " " "\n" | sort) <(echo $VALUE2 | xargs | tr " " "\n" | sort) | xargs)
+sed -i -E "s/^$STR2=$VALUE2/$STR2=$NEW2/" $FILE
+
+Зад. 22 2017-IN-02
+#!/bin/bash
+if [ $# -ne 1 ]; then
+    exit 1
+fi
+USER=$1
+if [ $(id -u) -ne 0 ]; then
+    exit 2
+fi
+F=$(mktemp)
+ps -e -o user=,pid=,time= > ${F}
+P=$(egrep "${USER}" ${F} | wc -l)
+for u in $(awk '{print $1}' ${F} | sort | uniq); do
+    S=$(egrep "${u}" ${F} | wc -l)
+    if [ ${S} -gt ${P} ]; then
+        echo "${u}"
+    fi
+done
+AVG=$(awk '{print $3}' ${F} | awk -F ':' '{count+=1;sum+=$1*3600+$2*60+$3} END {print sum/count}')
+echo "average seconds: ${AVG}"
+for p in $(egrep "${USER}" ${F} | awk '{print $2}'); do
+    N=$(echo "$AVG+$AVG" | bc)
+    T=$(egrep "$p" ${F} | awk '{print $3}' | awk -F ':' '{sum+=$1*3600+$2*60+$3} END {print sum}')
+    if [ $(echo "$T>$N" | bc) -eq 1 ]; then
+        kill -15 $p
+        sleep 2
+        kill -9 $p
+    fi
+done
+rm -- ${F}
+
+Зад. 23 2017-IN-03
+I начин:
+#!/bin/bash
+while read U H; do
+    find $H -type f -printf "$U %T@ %p\n" 2>/dev/null
+done < <(awk -F ':' '{print $1,$6}' /etc/passwd) | sort -n -r -k 2,2 | head -n 1 | awk '{print $1,$3}'
+
+II начин:
+awk -F ":" '{print $6}' /etc/passwd | xargs -I {} find {} -type f -printf "%u %p %T@\n" 2> /dev/null | sort -k 3,3n | tail -n 1 | awk '{print $1" "$2}'
+
+Зад. 24 2017-SE-01
+#!/bin/bash
+if [[ $# -lt 1 || $# -gt 2 ]]; then
+    exit 1
+fi
+N=-1
+if [ $# -eq 2 ]; then
+    N=$2
+fi
+D=$1
+if [ $N -eq -1 ]; then
+    find -L $D -type l -printf "%p\n"
+else
+    find $D -links $N -o -links +$N -printf "%p\n"
+fi
+
+Зад. 25 2017-SE-02
+#!/bin/bash
+SRC="$1"
+DST="$2"
+STR="$3"
+for f in $(find $SRC -type f -name "*${STR}*"); do
+    NF="$DST/$(echo "$f" | sed -E "s|^$SRC/(.+)|\1|")"
+    ND=$(echo "$NF" | sed -E "s|^(.+/)([^/]+)$|\1|")
+    mkdir -p $ND
+    mv $f $ND/$(basename $f)
+done
+
+Зад. 26 2017-SE-03
+#!/bin/bash
+if [ $(id -u) -ne 0 ]; then
+    exit 1
+fi
+if [ $# -ne 0 ]; then
+    exit 2
+fi
+T=$(mktemp)
+ps -eo user=,rss=,pid= > ${T}
+for u in $(cut -d ' ' -f 1 ${T} | sort | uniq); do
+    egrep "${u}" ${T} | awk '{count+=1; sum+=$2} END {print "count: "count", rss: "sum}'
+    MAX=$(egrep "${u}" ${T} | awk 'BEGIN {max=$2} $2>max {max=$2} END {print max}')
+    P=$(egrep "${u}" ${T} | egrep "${MAX}" | awk '{print $3}')
+    AVG=$(egrep "${u}" ${T} | awk '{count+=1; sum+=$2} END {print sum/count}')
+    if [ $(echo "$MAX>$(echo "$AVG+$AVG" | bc)" | bc) -eq 1 ]; then
+        kill -15 $P
+        sleep 2
+        kill -9 $P
+    fi
+done
+rm -- ${T}
+
+Зад. 27 2017-SE-04
+#!/bin/bash
+if [[ $# -lt 1 || $# -gt 3 ]]; then
+    exit 1
+fi
+F=""
+if [ $# -eq 2 ]; then
+    F=$2
+fi
+D=$1
+if [ -z $F ]; then
+    T=$(mktemp)
+    find $D -type l -xtype f >> $T
+    find $D -type l -xtype d >> $T
+    for s in $(cat $T); do
+        stat -c%N $s | sed -E "s/'//g"
+    done
+    echo "Broken symlinks: $(find -L $D -type l | wc -l)"
+    rm -- $T
+else
+    find $D -type l -printf "%p %Y %l\n" | awk '$2=="N" {count+=1} $2!="N" {print $1,"->",$3} END {print "Broken symlinks:",count}' > $F
+fi
+
+Зад.28 2017-SE-05
+D=$1
+S=$2
+RE="vmlinuz-[0-9]+\.[0-9]+\.[0-9]+-${S}"
+I начин:
+find $D -maxdepth 1 -type f -regextype egrep -regex ".+/${RE}" -printf "%f\n" | sort -V | tail -n 1
+II начин:
+find $D -type f -regextype egrep -regex ".+/${RE}" -printf "%f\n" | sed -E 's/vmlinuz-([0-9]+)\.([0-9]+)\.([0-9]+)-(.*)/\1 \2 \3 vmlinuz-\1.\2.\3-\4/' \
+	| sort -n -k1,1 -k2,2 -k3,3 | awk '{print $4}' | tail -n 1
+
+Зад.29 2017-SE-06
+#!/bin/bash
+[ $(id -u) -eq 0 ] || exit 1
+T=$(mktemp)
+ps -u root -U root -o user=,pid=,rss= -N > ${T}
+RR=$(awk '{sum+=$1} END {print sum}' <(ps -u root -U root -o rss=))
+for u in $(awk '{print $1}' ${T} | sort | uniq); do
+    dir=$(egrep "${u}" /etc/passwd | cut -d ':' -f 6)
+    if [[ -d ${dir} && "$(stat -c%U ${dir})" == ${u} && "$(stat -c%A ${dir} | cut -c 3)" == "w" ]]; then
+	continue
+    fi
+    R=$(egrep "${u}" ${T} | awk '{sum+=$3} END {print sum}')
+    if [ $RR -lt $R ]; then
+        for p in $(egrep "${u}" ${T} | awk '{print $2}'); do
+            kill -15 $p
+            sleep 2
+            kill -9 $p
+        done
+    fi
+    fi
+done
+rm -- ${T}
+
+Зад. 30 2018-SE-01
+for c in $(find $L -maxdepth 3 -mindepth 3 -type d -printf "%f\n" | sort | uniq); do
+	I начин: N=$(find $L -regextype egrep -regex ".*/$c/[0-9]{4}-([0-9]{2}){4}.txt")
+	II начин:
+	for j in $(find $L -mindepth 3 -maxdepth 3 -name $c); do
+		find $j -type f -name "...txt" | xargs cat | wc -l
+	done
+	III начин:
+	cat $L/*/*/$c/*.txt | wc -l
+	sort | sum
+done
+--------------------------------------------
+
+#!/bin/bash
+if [ $# -ne 1 ]; then
+    exit 1
+fi
+L=$1
+T=$(mktemp)
+for fr in $(find $L -maxdepth 3 -mindepth 3 -type d -printf "%f\n" | sort | uniq); do
+    N=$(find $L -regextype egrep -regex ".*/${fr}/[0-9]{4}-([0-9]{2}-){4}[0-9]{2}.txt" | xargs cat | wc -l)
+    echo "${fr} ${N}" >> ${T}
+done
+sort -nr -k 2,2 ${T} | head -n 10
+rm -- ${T}
+
+Зад.31 2018-SE-02
+I начин:
+#!/bin/bash
+if [ $# -ne 2 ]; then
+    exit 1
+fi
+if [ $(find $2 -mindepth 1 | wc -l) -ne 0 ]; then
+    exit 2
+fi
+F=$1
+D=$2
+sed -E "s/([a-Z]+ *[a-Z]+)( *\(.*\))*.*/\1/" $F | sort | uniq | awk '{print $1,$2";"NR}' > $D/dict.txt
+for n in $(cut -d ';' -f 2 $D/dict.txt); do
+    P1=$(egrep "$n" $D/dict.txt | cut -d ';' -f 1 | cut -d ' ' -f 1)
+    P2=$(egrep "$n" $D/dict.txt | cut -d ';' -f 1 | cut -d ' ' -f 2)
+    egrep "$P1 *$P2" $F | cut -d ':' -f 2 > $D/$n.txt
+done
+
+II начин:
+#!/bin/bash
+if [ $# -ne 2 ]; then
+    exit 1
+fi
+if [ $(find $2 -mindepth 1 | wc -l) -ne 0 ]; then
+    exit 2
+fi
+F=$1
+D=$2
+cut -d ':' -f1 $F | awk '{print $1,$2}' | sort | uniq | awk '{print $0";"NR}' > $D/dict.txt
+while read n s; do
+    N=$(egrep "$n $s" $D/dict.txt | cut -d ';' -f2)
+    egrep "[ ]*$n[ ]+$s[ ]*" $F > $D/$N.txt
+done < <(cut -d ';' -f1 $D/dict.txt)
+
+Зад.32 2018-SE-03
+I начин:
+#!/bin/bash
+if [ $# -ne 2 ]; then
+    exit 1
+fi
+F=$1
+sort -t ',' -k 2 -k 1,1n $F | tr ',' '\t' | uniq -f 1 | tr '\t' ',' > $2
+
+II начин:
+#!/bin/bash
+if [ $# -ne 2 ]; then
+    exit 1
+fi
+T=$(mktemp)
+sort -t ',' -k2 $1 | sed -E "s/,/ /" | uniq -f 1 | sed -E "s/ /,/" | cut -d ',' -f2- >> $T
+for a in $(cat $T); do
+    id=$(egrep ".+,$a$" $1 | sort -n -t ',' -k1,1 | head -n 1 | cut -d ',' -f1)
+    egrep "^$id,.+" $1 >> $2
+done
+rm -- $T
+
+Зад. 33 2019-SE-01
+a)
+#!/bin/bash
+max=0
+T=$(mktemp)
+while read row; do
+    echo "$row"
+    if [[ $row =~ ^-?[0-9]+$ ]]; then
+       if [ $max -lt $row ]; then
+          max=$row
+       fi
+    fi
+done > $T
+egrep "$max" $T | sort | uniq
+rm -- $T
+
+b)
+#!/bin/bash
+min=0
+maxSum=0
+T=$(mktemp)
+while read row; do
+    echo $row
+    if [[ $row =~ ^-?[0-9]+$ ]]; then
+        rowSum=0
+	curr=$(echo "$row" | tr -d '-')
+        rowSum=$(sed -E 's/(.)/\1+/g' <(echo "$curr") | rev | cut -c 2- | rev | bc)
+        if [ $maxSum -le $rowSum ]; then
+            if [[ $maxSum -lt $rowSum || $row -lt $min ]]; then
+                min=$row
+            fi
+            maxSum=$rowSum
+        fi
+    fi
+done > $T
+egrep "$(echo "$min" | tr -d '-')" $T | sort -n | uniq
+rm -- $T
+
+Зад. 34 2019-SE-02
+#!/bin/bash
+[ $# -ge 1 ] || exit 1
+N=10
+if [ $1 == "-n" ]; then
+    [ $# -ge 2 ] || exit 2
+    N=$2; shift 2
+fi
+while [ $# -gt 0 ]; do
+    F=$1; shift
+    IDF=$(basename -s .log $F)
+    tail -n $N $F | sed -E "s/^(.{19}) (.*)$/\1 $IDF \2/"
+done | sort
+
+Зад. 35 2019-SE-03
+#!/bin/bash
+[ $# -eq 1 ] || exit 1
+[ -d $1 ] || exit 2
+if ! [ -d ./extracted ];then
+        mkdir extracted
+fi
+DIR=$1
+for archive in $(find $DIR -printf "%f\n" | egrep "^[^_]_report-.+\.tgz"); do
+        archiveName=$(basename -s .tgz $archive | cut -d "_" -f 1)
+        archiveTimeStamp=$(basename -s .tgz $archive | rev | cut -d "-" -f 1 | rev)
+        target=$(tar -tf $archive "meow.txt")
+        if [ -z $target ]; then
+            continue
+        fi
+        tar -xf $archive -C ./extracted $target
+        mv ./extracted/$target ./extracted/${archiveName}_${archiveTimeStamp}.txt
+done
+
+Зад. 36 2020-SE-01
+#!/bin/bash
+[ $# -eq 2 ] || exit 1
+F=$1
+D=$2
+echo "hostname,phy,vlans,hosts,failover,VPN-3DES-AES,peers,VLAN Trunk Ports,license,SN,key" > $F.csv
+for file in $(find $D -type f -name "*.log"); do
+    H=$(basename -s .log $file)
+    L=$(tail -n +2 $file | sed -E "s/This platform has an? (.+) license/license: \1/" | cut -d ':' -f 2- | tr -s '\n' | cut -c 2- | tr '\n' ',' | rev | cut -c 2- | rev)
+    echo "$H,$L"
+done >> $F.csv
+
+Зад. 37 2020-SE-02
+#!/bin/bash
+[ $# -eq 1 ] || exit 1
+F=$1
+websites=$(cut -d ' ' -f 2 $F | sort | uniq -c | sort -nr -k 1,1 | head -n 3 | awk '{print $2}')
+for s in $websites; do
+    C1=$(egrep "$s" $F | egrep -c "HTTP/2.0")
+    C2=$(egrep "$s" $F | egrep -c -v "HTTP/2.0")
+    echo "$s HTTP/2.0: $C1 non-HTTP/2.0: $C2"
+    clients=$(egrep "$s" $F | awk '$9>302 {print $1}' | sort | uniq -c | sort -nr -k 1,1 | head -n 5 | awk '{print $2}')
+    for c in $clients; do
+        R=$(egrep -c "$c" $F)
+        echo -e "\t$R $c"
+    done
+done
+
+Зад. 38 2020-SE-03
+#!/bin/bash
+repo=$1
+name=$2
+tar -cf package $name/tree
+xz package
+sha=$(sha256sum package.xz | cut -d ' ' -f1)
+version=$(cat $name/version)
+if [ $(egrep -c "$version" $repo/db) -eq 0 ]; then
+    echo "$(basename $name)-$version $sha" >> $repo/db
+else
+    oldSha=$(egrep "$version" $repo/db | cut -d ' ' -f2)
+    oldName=$(egrep "$version" $repo/db | cut -d ' ' -f1 | cut -d '-' -f1)
+    newName=$(basename $name)
+    sed -i -E "s/$oldName-$version $oldSha/$newName-$version $sha/" $repo/db
+    rm $repo/packages/$oldSha.tar.xz
+fi
+mv package.xz $repo/packages/$sha.tar.xz
+res=$(sort $repo/db)
+echo "$res" > $repo/db
+
+Зад. 39 2020-SE-04
+#!/bin/bash
+[ $# -eq 2 ] || exit 1
+SRC=$1
+DST=$2
+FILES=$(mktemp)
+find $SRC -type f -name "*.jpg" -printf "%f\n" > $FILES
+mkdir $DST
+mkdir $DST/images
+mkdir $DST/by-date
+mkdir $DST/by-album
+mkdir $DST/by-title
+while read f; do
+    title=$(cat $f | sed -E 's/\([^(]*\)//g' | tr -s ' ' | cut -d '.' -f 1)
+    album=$(cat $f | sed -E "s/.*(\(.+\)).*/\1/") # може и egrep -o "\([^()]+\)" | tail -n 1
+    if [ $(echo "$album" | egrep -c "[()]") -eq 0 ]; then
+        album="misc"
+    fi
+    album=$(cat <(echo $album) | tr -d '(' | tr -d ')' | tr -s ' ')
+    data=$(find $SRC -type f -name "*$f" -printf "%TF\n")
+    sha=$(sha256sum <(echo $f) | cut -c -16)
+    cp "$(find $SRC -type f -name "*$f")" $DST/images/${sha}".jpg"
+    mkdir -p $DST/by-date/$data/by-album/"$album"/by-title
+    ln -s $DST/images/"${sha}.jpg" $DST/by-date/$data/by-album/"$album"/by-title/"$title.jpg"
+    mkdir $DST/by-date/$data/by-title
+    ln -s $DST/images/"${sha}.jpg" $DST/by-date/$data/by-title/"$title.jpg"
+    mkdir -p $DST/by-album/"$album"/by-date/$data/by-title
+    ln -s $DST/images/"${sha}.jpg" $DST/by-album/"$album"/by-date/$data/by-title/"$title.jpg"
+    mkdir $DST/by-album/"$album"/by-title
+    ln -s $DST/images/${sha}".jpg" $DST/by-album/"$album"/by-title/"$title.jpg"
+    ln -s $DST/images/${sha}".jpg" $DST/by-title/"$title.jpg"
+done < $FILES
+rm -- $FILES
+
+Зад. 40 2020-SE-05
+#!/bin/bash
+[ $# -eq 3 ] || exit 1
+config=$2
+passwords=$1
+dir=$3
+for f in $(find $dir -type f -name "*.cfg"); do
+    if [ $(egrep -c -v "^#|^{ .+ };$" $f) -ne 0 ]; then
+        echo "Error in $f:"
+        egrep -n "." $f | awk -F ':' '$2 !~ /^#|^{ .+ };$/ {print "Line" $0}'
+        echo ""
+    else
+        if [ ! -f $config ]; then
+            touch $config
+        fi
+        cat $f >> $config
+        username=$(basename -s .cfg $f)
+        if [ $(egrep -c "$username" $passwords) -ne 0 ]; then
+            continue
+        fi
+        password=$(pwgen 16 1)
+        passSha=$(sha256sum <(echo "$password") | cut -d ' ' -f1 | cut -c -16)
+        echo "$username:$passSha" >> $passwords
+        echo "$username $password"
+    fi
+done
+res=$(sort $config | uniq)
+echo "$res" > $config
+
+
+Зад. 41 2020-SE-06
+#!/bin/bash
+[ $# -eq 3 ] || exit 1
+config=$1
+key=$2
+value=$3
+date=$(date)
+user=$(id -un)
+if [ $(egrep -c "$key" $config) -eq 0 ]; then
+    echo "$key = $value # added at $date by $user" >> $config
+else
+    oldVal=$(egrep "$key" $config | cut -d '=' -f 2 | awk '{print $1}')
+    if [ $oldVal != $value ]; then
+	sed -i -E "s/( *$key *=.*)/# \1 # edited at $date by $user\n$key = $value # added at $date by $user/" $config
+    fi
+fi
+
+Зад. 42 2021-SE-01
+I начин:
+#!/bin/bash
+user=$(id -un)
+if [[ "z$user" != "zoracle" && "z$user" != "zgrid" ]]; then
+    exit 1
+fi
+if [ -z $ORACLE_HOME ]; then
+    exit 2
+fi
+adrci=$ORACLE_HOME/dir/adrci
+if [ ! -x $adrci ]; then
+    exit 3
+fi
+diag_dest=/u01/app/$user
+if [ ! -d $diag_dest ]; then
+    exit 4
+fi
+output=$($adrci exec="show homes")
+if [ $(echo "$output" | egrep -c "No ADR homes are set") -eq 1 ]; then
+    exit 5
+fi
+for d in $(echo "$output" | tail -n +2); do
+    du -sm $diag_dest/$d
+done
+
+II начин:
+#!bin/bash
+XU=$(id -un)
+if [ "z${XU}" != "zoracle" ] && [ "z${XU}" != "zgrid" ]; then
+	echo "Wrong user!" >&2 #извежда на стандартния изход за грешка
+	exit 1
+fi
+if [ -z $ORACLE_HOME ]; then
+	echo "Missing env variable" >&2
+	exit 1
+fi
+ADRCI=$ORACLE_HOME/bin/adrci
+if [ ! -x $ADRCI ]; then
+	echo "Not executable adrci" >&2
+	exit 1
+fi
+DIAG_DEST=/u01/app/$XU
+
+if [ ! -d $DIAG_DEST ]; then
+	echo "No dir" >&2
+	exit 1
+fi
+${ADRCI} exec="show home" | grep -q 'No ADR homes are set'
+if [ $? -eq 0 ]; then
+	echo "No ADR homes are set" >&2
+	exit 1
+fi	
+ADRHOMES=$({ADRCI} exec="show home" | tail -n 2+ | xargs)
+# I начин
+for D in ${ADRHOMES}; do
+	du -sm ${DIAG_DEST}/${D}
+done
+# II начин
+echo ${ADRHOMES} | sed -E "s,(^| )diag/, ${DIAG_DEST}/diag/,g" | xargs du -sm
+
+Зад. 43 2021-SE-02
+I начин:
+#!/bin/bash
+[ $# -ge 1 ] || exit 1
+while [ $# -gt 0 ]; do
+    file=$1; shift
+    todayDate=$(date +%Y%m%d)
+    if [ $(egrep -c "SOA" $file) -ne 1 ]; then
+        echo "Wrong number of SOA records"
+    elif [ $(head -n 1 $file | egrep -c "SOA") -ne 1 ]; then
+        echo "SOA record must be first in the file $file"
+    else
+        if [ $(egrep -c "\(" $file) -eq 1 ]; then
+            oldSerial=$(head -n 2 $file | tail -n 1 | cut -d ';' -f 1 | tr -s ' ')
+        else
+            oldSerial=$(head -n 1 $file | tr -s ' ' | rev | cut -d ' ' -f 5 | rev) #2021041901
+        fi
+        serialDate=$(echo $oldSerial | cut -c -8)
+        oldSerialNum=$(echo $oldSerial | cut -c 9-)
+        if [[ "${todayDate}" > "${serialDate}" ]]; then
+            newSerial="${todayDate}00"
+        elif [[ "${todayDate}" = "${serialDate}" ]]; then
+            newSerialNum=$(echo "$oldSerialNum+1" | bc)
+            newSerial="${todayDate}${newSerialNum}"
+            if [ ${newSerialNum} -gt 99 ]; then
+                echo "too many changes in file ${file}"
+                continue
+            elif [ ${newSerialNum} -lt 10 ]; then
+                newSerial="${todayDate}0${newSerialNum}"
+            fi
+        else
+        echo "wrong date in file ${file}"
+            continue
+        fi
+	# ако искаме точно да се запази форматът на файла
+	#if [ $(egrep -c "\(" $file) -eq 1 ]; then
+        #    sed -i -E "s/(.*)([0-9]{10})(.+)/\1${newSerial}\3/" ${file}
+        #else
+        #    sed -i -E "s/(.*)IN( +)(SOA|NS|A|AAAA)(.*)( +[0-9]+ +)([0-9]+ +)([0-9]+ +)([0-9]+ +)([0-9]+)/\1IN\2\3\4 ${newSerial} \6\7\8\9/" \
+	#	${file}
+        #fi
+	# иначе
+	sed -i -E "s/${oldSerial}/${newSerial}/" ${file}
+    fi
+done
+
+II начин (същият, но с още проверки):
+#!/bin/bash
+if [ $# -lt 1 ]; then
+    exit 1
+fi
+while [ $# -gt 0 ]; do
+    file=$1; shift
+    if [ $(egrep -c "SOA" $file) -ne 1 ]; then
+        echo "error in: $file" >&2; continue
+    elif [ $(head -n 1 $file | egrep -c "SOA") -ne 1 ]; then
+        echo "error in: $file" >&2; continue
+    fi
+    fqdns=$(head -n 1 $file | tr ' ' '\n' | awk '$1 ~ /^[a-z0-9][a-z0-9.]*\.$/ && $1 !~ /\.\./ {print $1}')
+    if [ $(echo "$fqdns" | wc -l) -ne 3 ]; then
+        echo "error in: $file" >&2; continue
+    fi
+    nums=""
+    if [ $(head -n 1 $file | egrep -c "\(") -eq 1 ]; then
+        nums=$(tail -n +2 $file | head -n 5 | awk -F ';' '{print $1}')
+    else
+        nums=$(head -n 1 $file | rev | cut -d ' ' -f -5 | rev | tr ' ' '\n')
+    fi
+    if [ $(echo "$nums" | egrep -c -v "[0-9]+") -ne 0 ]; then
+        echo "error in: $file" >&2; continue
+    fi
+    serial=$(echo "$nums" | head -n 1)
+    today=$(date +%Y%m%d)
+    sdate=$(echo "$serial" | cut -c -8)
+    snumber=$(echo "$serial" | cut -c 9,10)
+    newSerial=""
+    if [[ "$sdate" < "$today" ]]; then
+        newSerial="${today}00"
+    elif [[ "$sdate" = "$today" ]]; then
+        if [ $snumber -eq 99 ]; then
+            echo "Too many changes for one day!"; continue
+        fi
+        newNumber=$(echo "$snumber+1" | bc)
+        newSerial="${today}${newNumber}"
+        if [ $newNumber -lt 10 ]; then
+            newSerial="${today}0${newNumber}"
+        fi
+    fi
+    sed -i -E "s/(.*)$serial(.*)/\1$newSerial\2/" $file
+done
+
+Зад. 44 2021-SE-03
+I начин:
+#!/bin/bash
+input=$1
+output=$2
+numbers=$(xxd $input | cut -d ' ' -f 2-10 | xargs)
+count=0
+for i in $numbers; do
+    count=$((count + 1))
+done
+echo -e "uint16_t arr={$(echo "$numbers" | tr ' ' ',')};\nuint_32 arrN=${count};" > $output
+
+II начин:
+#!/bin/bash
+[ $# -eq 2 ] || (echo "insufficient args" && exit 1)
+INPUT=$1
+OUTPUT=$2
+numbers=$(hexdump $INPUT | awk '{ s = ""; for (i = 2; i <= NF; i++) s = s $i " "; print s }')
+outputTextArr="const uin16_t arr={"
+count=0
+for i in $numbers; do
+        littleEnd=$(echo $i | sed -E "s/(..)(..)/\2\1/g" | tr '[a-z]' '[A-Z]')
+        toDec=$(echo "obase=10; ibase=16; $littleEnd" | bc)
+        outputTextArr="${outputTextArr} ${toDec},"
+        count=$(($count + 1))
+done
+outputTextArr=$(echo "$(echo $outputTextArr | rev | cut -c 2- | rev) };")
+outputSizeArr="uint32_t arrN=$count;"
+echo -e "${outputTextArr}\n$outputSizeArr" > $OUTPUT
+
+Зад. 45 2021-SE-04
+#!/bin/bash
+if [[ $# -ne 1 || ! $1 =~ ^[0-9]+$ || $1 -lt 2 ]]; then
+    exit 1
+fi
+user=$(id -un)
+if [[ "z$user" != "zoracle" && "z$user" != "zgrid" ]]; then
+    exit 2
+fi
+if [ -z $ORACLE_HOME ]; then
+    exit 3
+fi
+adrci=$ORACLE_HOME/dir/adrci
+if [ ! -x $adrci ]; then
+    exit 4
+fi
+diag_dest=/u01/app/$user
+if [ ! -d $diag_dest ]; then
+    exit 5
+fi
+output=$($adrci exec="set base ${diag_dest}; show homes")
+if [ $output = "No ADR homes are set" ]; then
+    exit 6
+fi
+minutes=$(echo "$1*60" | bc)
+interesting=$(echo "$output" | tail -n 2+ | awk -F '/' '$2 ~ /crs|tnslsnr|kfod|asm|rdbms/ {print $0}')
+for dir in $interesting; do
+    $adrci exec="set homepath $dir; purge $minutes"
+done
+
+Зад. 46 2022-CE-01
+#!/bin/bash
+baseF="base.csv"
+prefixF="prefix.csv"
+[ $# -eq 3 ] || exit 1
+if [[ ! -f $baseF || ! -f $prefixF ]]; then
+    echo "base.csv or prefix.csv does not exist"
+    exit 2
+fi
+number=$1 #2.1
+prefSymb=$2 #M
+unitSymb=$3 #s
+dec=$(egrep ",$prefSymb," | cut -d ',' -f 3) #1000000
+resultNum=$(echo "$number*$dec" | bc) #2100000.0
+measure=$(egrep ",$unitSymb," $baseF | cut -d ',' -f 3) #time
+unitName=$(egrep ",$unitSymb," $baseF | cut -d ',' -f 1) #second
+echo "$resultNum $unitSymb ($measure, $unitName)"
+
+Зад. 47 2022-CE-02
+#!/bin/bash
+[ $# -eq 1 ] || exit 1
+device=$1
+if [ $(cut -d ' ' -f 1 /proc/acpi/wakeup | egrep -c "$device") -eq 0 ]; then
+    echo "$device not found"
+    exit 2
+fi
+sed -i -E "s/$device(.*)\*enabled(.*)/$device\1\*disabled\2/" /proc/acpi/wakeup
+
+Зад. 48 2022-IN-01
+I начин:
+#!/bin/bash
+[ $# -eq 2 ] || exit 1
+src=$1
+dst=$2
+if [ $(find $dst -maxdepth 0 | wc -l) -ne 0 ]; then
+    echo "$dst not empty"
+    exit 1
+fi
+files=$(find $src -type f)
+for f in $files; do
+    path=$(dirname $f)
+    hidden=$(find $path/ -maxdepth 1 -type f -name ".$(basename $f).swp" -printf "%f\n")
+    if [ ! -z $hidden ]; then
+        files=$(echo "$files" | sed -E "s|$path/$hidden||")
+    fi
+done
+files=$(echo "$files" | xargs | tr ' ' '\n')
+for f in $files; do
+    path=$(dirname $f | sed -E "s|$src|$dst|")
+    mkdir -p $path
+    cp $f $path/$(basename $f)
+done
+
+II начин:
+#!/bin/bash
+[ $# -eq 2 ] || exit 1
+src=$1
+dst=$2
+if [ $(find $dst | wc -l) -ne 1 ]; then
+    echo "$dst not empty"
+    exit 1
+fi
+for file in $(find $src -type f); do
+    newPath=$(echo "$file" | sed -E "s|$src|$dst|1")
+    if [ $(basename $file | egrep -c ".swp") -eq 0 ]; then
+        mkdir -p $(dirname $newPath)
+        cp $file $newPath
+        continue
+    fi
+    toFind="$(dirname $file)/$(basename -s ".swp" $file | cut -c 2-)"
+    if [ -f $toFind ]; then
+        continue
+    fi
+    mkdir -p $(dirname $newPath)
+    cp $file $newPath
+done
+
+Зад. 49 2022-IN-02
+#!/bin/bash
+if [ $# -ne 1 ]; then
+    exit 1
+fi
+days=$1
+machine=$(hostname -s)
+user=$(id -un)
+if [[ "z$user" != "zoracle" && "z$user" != "zgrid" ]]; then
+    exit 2
+fi
+if [ -z $ORACLE_BASE || -z $ORACLE_HOME || -z $ORACLE_SID ]; then
+    exit 3
+fi
+if [ ! -d $ORACLE_BASE || ! -d $ORACLE_HOME ]; then
+    exit 4
+fi
+sqlplus=$ORACLE_HOME/bin/sqlplus
+if [ ! -x $sqlplus ]; then
+    exit 5
+fi
+role=""
+if [ "z$user" = "zoracle" ]; then
+    role="sysdba"
+else
+    role="sysasm"
+fi
+diagnostic_base=$($sqlplus -SL "/ as $role" $foo.sql)
+if [ $? -ne 0 ]; then
+    exit 6
+fi
+diagnostic_base=$(echo "$diagnostic_base" | head -n 4 | tail -n 1)
+diag_base=""
+if [ -z $diagnostic_base ]; then
+    diag_base=$ORACLE_BASE
+else
+    diag_base=$diagnostic_base
+fi
+if [ ! -d $diag_base/diag ]; then
+    exit 7
+fi
+diag_dir=$diag_base/diag
+CRS=$(mktemp)
+TNS=$(mktemp)
+RDB=$(mktemp)
+if [ "z$user" = "zgrid" ]; then
+    find $diag_dir/crs/$machine/crs/trace -maxdepth 1 -type f -mtime +$days -regextype egrep -regex ".*_[0-9]+$" >> $CRS
+    find $diag_dir/tnslsnr/$machine -maxdepth 3 -type f -mtime +$days | egrep "$diag_dir/tnslsnr/$machine/[^/]+/alert/.*_[0-9]+\.xml$" >> $TNS
+    find $diag_dir/tnslsnr/$machine -maxdepth 3 -type f -mtime +$days | egrep "$diag_dir/tnslsnr/$machine/[^/]+/trace/.*_[0-9]+\.log" >> $TNS
+else
+    find $diag_dir/rdbms -maxdepth 3 -type f | egrep "$diag_dir/tnslsnr/$machine/[^/]+/[^/]+/.*_[0-9]\.(trc|trm)" >> $RDB
+fi
+if [ "z$user" = "zgrid" ]; then
+    cat $CRS | xargs du -k | awk '{res+=$1} END {print "crs:",res}'
+    cat $TNS | xargs du -k | awk '{res+=$1} END {print "tnslsnr",res}'
+else
+    cat $RDB | xargs du -k | awk '{res+=$1} END {print "rdbms:",res}'
+fi
+rm -- $CRS
+rm -- $TNS
+rm -- $RDB
+
+Зад. 50 2022-IN-03
+#!/bin/bash
+[ $# -ge 3 ] || exit 1
+[ "$1" = "java" ] || exit 2
+jarFileName=""
+found=0
+for arg in $@; do
+    if [ "$arg" = "-jar" ]; then
+        found=1
+        continue
+    fi
+    if [[ $found -eq 1 && ! $arg =~ ^-.+ ]]; then
+        jarFileName="${arg}"
+        break
+    fi
+done
+args=""
+options=""
+D_opts=""
+found=0
+for arg in $@; do
+    if [ "$arg" = "$jarFileName" ]; then
+        found=2
+        continue
+    fi
+    if [ "$arg" = "-jar" ]; then
+        found=1
+        continue
+    fi
+    if [[ $found -eq 2 && ! "${arg}" =~ ^-D.+=.+$ ]]; then
+        args="$args ${arg}"
+    elif [[ ! $arg =~ ^-D.+=.+$ && "$arg" =~ ^-.+ ]]; then
+        options="$options ${arg}"
+    elif [[ $found -eq 1 && "${arg}" =~ ^-D.+=.+$ ]]; then
+        D_opts="$D_opts ${arg}"
+    fi
+done
+echo "java$D_opts$options -jar $jarFileName$args"
+
+Зад. 51 2022-IN-04
+#!/bin/bash
+[ $# -eq 1 ] || exit 1
+dir=$1
+if [[ ! -f "$dir/foo.pwd" || ! -d "$dir/cfg" ]]; then
+    exit 2
+fi
+files=$(find $dir/cfg -type f -name "*.cfg")
+result=$(mktemp)
+for file in $files; do
+    temp="$($dir/validate.sh $file)"
+    lastStatus=$(echo $?)
+    if [ $lastStatus -eq 1 ]; then
+        echo "$temp" | awk -v conf=$(basename $file) '{print conf":"$0}' >&2
+    elif [ $lastStatus -eq 0 ]; then
+        cat $file >> $result
+        username=$(basename -s ".cfg" $file)
+        if [ $(egrep -c "$username" "${dir}/foo.pwd") -eq 0 ]; then
+            pass=$(pwgen 4 1)
+            hashPass=$(mkpasswd $pass)
+            echo "${username}:${pass}"
+            echo "${username}:${hashPass}" >> ${dir}"/foo.pwd"
+        fi
+    elif [ $lastStatus -eq 2 ]; then
+        exit 2
+    fi
+done
+cp $result $dir"/foo.conf"
+rm -- $result
+
+Зад. 52 2022-SE-01
+#!/bin/bash
+[ $# -eq 1 ] || exit 1
+config=$1
+wakeupFile="/proc/acpi/wakeup"
+if [ ! -f $wakeupFile ]; then
+    exit 2
+fi
+devicesAndStatuses=$(cut -d '#' -f 1 $config | awk '{print $1,$2}' | egrep "^[a-Z]{1,4} (enabled|disabled)")
+while read device statuss; do
+    if [ $(egrep -c "$device" $wakeupFile) -eq 0 ]; then
+        echo "$device does not exist in $wakeupFile"
+        continue
+    fi
+    sed -i -E "s/^$device(.*)\*(enabled|disabled)(.*)/$device\1\*$statuss\3/" $wakeupFile
+done < <(echo "$devicesAndStatuses")
+
+Зад. 53 2022-SE-02 
+#!/bin/bash
+[ $# -eq 2 ] || exit 1
+fubar=$1
+percentage=$2
+if [[ $percentage -lt 1 || $percentage -gt 99 ]]; then
+   exit 2
+fi
+find -L $fubar -type l | xargs rm
+for i in $(seq 0 3); do
+    backupCount=$(echo "$i+1" | bc)
+    for object in $(find $fubar/$i -type f -name "*.tar.xz" | cut -d '.' -f 1 | cut -d '-' -f 1,2 | sort -t '-' | uniq); do
+        while [ $(find $fubar/$i -type f -name "*.tar.xz" | egrep -c "object") -gt $backupCount ]; do
+            if [ $percentage -le $(df $fubar | tail -n 1 | awk '{print $5}') ]; then
+                exit 0
+            fi
+            oldestDate=$(find $fubar/$i -type f -name "*.tar.xz" | egrep "object" | cut -d '.' -f 1 | cut -d '-' -f 3 | sort -n | head -n 1)
+            find $fubar/$i -type f -name "*.tar.xz" | egrep "$object-$oldestDate" | head -n 1 | xargs rm
+        done
+    done
+done
+
+Зад. 54 2023-IN-01
+#!/bin/bash
+if [ $# -gt 1 ]; then
+    exit 1
+fi
+if [[ $# -eq 1 && "$1" = "autoconf" ]]; then
+    echo "yes"
+    exit 0
+fi
+if [ $(id -u) -ne 0 ]; then
+    exit 2
+fi
+slots=0
+if [ ! -z $CTRLSLOTS ]; then
+    slots=$CTRLSLOTS
+fi
+if [ $# -eq 1 ]; then
+    echo -e "graph_title SSA drive temperatures\ngraph_vlabel Celsius\ngraph_category sensors\ngraph_info This graph shows SSA drive temp"
+fi
+R=$(mktemp)
+T=$(mktemp)
+for s in $slots; do
+    ssacli ctrl slot=$s pd all show detail > $T
+    controler=$(head -n 1 $T | awk '{print $3}')
+    if [ $# -eq 1 ]; then
+        tail -n +2 $T | awk -v sl=$s -v ct=$controler '$1=="Array" {arr=$2} $1=="Unassigned" {arr="UN"} \
+            $1=="physicaldrive" {print "SSA"sl ct arr $2".label SSA",sl,ct,arr,$2"\nSSA"sl ct arr $2".type GAUGE"}' | \
+            sed -E "s/://" | sed -E "s/://" >> $R
+    else
+        tail -n +2 $T | awk -v sl=$s -v ct=$controler '$1=="Array" {arr=$2} $1=="Unassigned" {arr="UN"} \
+            $1=="physicaldrive" {phys=$2} $1=="Current" && $2=="Temperature" {print "SSA"sl ct arr phys".value",$4}' | \
+            sed -E "s/://" | sed -E "s/://" >> $R
+    fi
+done
+rm -- $T
+
+Зад. 55 2023-IN-02
+#!/bin/bash
+if [ $# -ne 1 ]; then
+    exit 1
+fi
+dir=$1
+if [ ! -d $dir ]; then
+    exit 2
+fi
+measurements=$(find $dir -type f | xargs sha256sum | awk '{print $1}' | sort | uniq)
+F=$(mktemp)
+R=$(mktemp)
+find $dir -type f -printf "%p %n %i\n" > $F
+for m in $measurements; do
+    T=$(mktemp)
+    currFiles=$(awk '{print $1}' $F | xargs sha256sum | egrep "$m" | awk '{print $2}')
+    for f in $currFiles; do
+        egrep "$f [0-9]+" $F >> $T
+    done
+    if [[ "$(awk '$2==1 {res+=1} END {print res}' $T)" == "$(cat $T | wc -l)" ]]; then
+        if [ $(cat $T | wc -l) -ne 1 ]; then
+            awk '{print $1}' $T | head -n -1 >> $R
+        fi
+    elif [[ "$(awk '$2>1 {res+=1} END {print res}' $T)" == "$(cat $T | wc -l)" ]]; then
+        candidates=$(sort -k 2,2n -k3,3n $T | uniq -f 1 -c | awk '{print $2}')
+        for f in $candidates; do
+            if [ $(echo "$candidates" | egrep -c "$f") -ne 0 ]; then
+                echo "$f" >> $R
+            fi
+        done
+    else
+        awk '$2==1 {print $1}' $T >> $R
+        candidates=$(awk '$2>1 {print $0}' $T | sort -k2,2n -k3,3n | uniq -f 1 -c | awk '{print $2}')
+        for f in $candidates; do
+            if [ $(echo "$candidates" | egrep -c "$f") -ne 0 ]; then
+                echo "$f" >> $R
+            fi
+        done
+    fi
+    rm $T
+done
+cat $R
+rm -- $R
+rm -- $F

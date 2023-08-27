@@ -1,0 +1,410 @@
+05-a-2000.txt
+PS1='newname'
+
+05-a-2100.txt
+vi ~/.profile
+echo "Hello, Deyan!"
+
+05-a-2200.txt
+alias print='echo'
+
+05-b-2000.txt
+#!/bin/bash
+read str
+echo "Hello, ${str}"
+
+05-b-2800.txt
+#!/bin/bash
+[ $# -eq 1 ] || exit 1
+if [[ $1 =~ ^[0-9a-Z]+$ ]]
+then
+    echo "OK"
+    exit 0
+else
+    echo "Not OK"
+fi
+exit 1
+
+05-b-3100.txt
+#!/bin/bash
+read USER
+I начин:
+ps -e -o sid,stat,user | awk '$2=="Ss" {print $0}' | egrep "${USER}" | wc -l
+II начин:
+ps -u "${USER}" -o stat | awk '$1=="Ss" {print $0}' | wc -l
+
+05-b-3200.txt
+#!/bin/bash
+read path
+find ${path} -type f -o -type d 2>/dev/null | wc -l
+
+05-b-3300.txt
+#!/bin/bash
+read f1 f2 f3
+paste ${f1} ${f2} | sort > ${f3}
+
+05-b-3400.txt
+I начин:
+#!/bin/bash
+read file str
+if [ $(egrep -c ${str} ${file}) -ge 1 ]
+then
+    echo $?
+else
+    echo $?
+fi
+II начин:
+#!/bin/bash
+read file str
+egrep -q "${str}" ${file}
+echo "code: " $?
+
+05-b-4200.txt
+I начин:
+#!/bin/bash
+read file
+cat ${file} | egrep -o '[{}]' | awk '/{/ {curr+=1} max < curr {max=curr} /}/ {curr-=1} END {print "max depth: "max}'
+II начин:
+#!/bin/bash
+cat $1 | egrep -o '[{}]' | awk '$1 == "{" { curr+=1 } $1 == "}" { if (curr>max) max=curr ; curr-=1 } END {print "max depth: "max}'
+
+05-b-4301.txt
+#!/bin/bash
+if [ $# != 3 ]
+then
+    exit 1
+fi
+if [ $(egrep -c -w "$2" /etc/passwd) -eq 0 ]; then
+    exit 2
+fi
+echo $3 $2 >> $1
+
+05-b-4400.txt
+#!/bin/bash
+if [ $# -eq 1 ]; then
+     mkdir "$(date +%d:%m:%Y)"
+     dir = "$(date +%d:%m:%Y)"
+     cp $(find $1 -type f -mmin -45) ${dir}
+fi
+if [ $# -eq 2 ]; then
+     dir=$2
+     find $1 -type f -mmin -45 | xargs cp -t ${dir}
+fi
+echo "Archive: directory? (y/n)"
+read ans
+if [ ${ans} == "y" ]
+then
+    tar -cf ./"${dir}".tar ./"${dir}"
+fi
+
+05-b-4500.txt
+#!/bin/bash
+while [ $(who | awk '{print $1}' | egrep -c $1) -eq 0 ]; do
+     echo "Searching for user..."
+     sleep 1
+done
+echo "User found!"
+
+05-b-4600.txt
+#!/bin/bash
+if [ $# -ne 3 ]; then
+     exit 4
+fi
+if ! [[ $1 =~ ^-?[0-9]+$ && $2 =~ ^-?[0-9]+$ && $3 =~ ^-?[0-9]+$ ]]; then
+	exit 3
+elif [ $2 -gt $3 ]; then
+        exit 2
+elif [ $1 -lt $2 -o $1 -gt $3 ]; then
+        exit 1
+elif [ $1 -ge $2 -a $1 -le $3 ]; then
+        exit 0
+fi
+
+05-b-4700.txt
+I начин:
+#!/bin/bash
+STR=$(echo $1 | sed -r 's/(.)/\1 /g' | rev)
+DELIM=" "
+if [ $# -eq 2 ]; then
+        DELIM=$2
+fi
+COUNT=0
+RESULT=""
+for i in $STR; do
+    RESULT="${RESULT}${i}"
+    if [ $((COUNT%3)) -eq 0 ]; then
+        RESULT="${RESULT}${DELIM}"
+    fi
+    COUNT=$((COUNT+1))
+done
+echo ${RESULT} | rev
+
+II начин: 
+ #!/bin/bash
+NUMBER=$1
+DELIM=" "
+if [ $# -eq 2 ]; then
+        DELIM=$2
+fi
+RESULT=$(echo ${NUMBER} | rev | egrep -o '[0-9]' | awk -v delim="${DELIM}" '{res=res$1} {curr+=1}
+        curr==3 {res=res delim; curr=0} END {print res}' | rev)
+echo ${RESULT}
+
+III начин:
+echo $1 | rev | sed -E "s/([0-9]{3})/\1$2/g" | rev | sed -E "s/^$2(.+)/\1/1"
+
+05-b-4800.txt 
+#!/bin/bash
+if [ $# != 2 ]; then
+    exit 1
+fi
+sha=$(sha256sum $1 | cut -d ' ' -f1)
+dir=$2
+find "${dir}" -type f | xargs sha256sum | awk -v s="${sha}" '$1==s {print $2}'
+
+05-b-5500.txt
+#!/bin/bash
+echo -e "<table>\n\t<tr>\n\t\t<th>Username</th>\n\t\t<th>group</th>\n\t\t<th>login shell</th>\n\t\t<th>GECOS</th>\n\t</tr>"
+awk -F ':' '{print "\t<tr>\n\t\t<td>"$1"</td>\n\t\t<td>"$4"</td>\n\t\t<td>"$5"</td>\n\t\t<td>"$7"</td>\n\t</tr>"}' /etc/passwd
+echo "</table>"
+
+05-b-6600.txt
+I начин:
+#!/bin/bash
+FILES=$(mktemp)
+find $1 -type f | xargs sha256sum | sort | sed -e 's/  / /g' > ${FILES}
+awk 'BEGIN {currName=$2;currSha=$1}
+    ($2!=currName && $1==currSha) {print $2}
+    $1!=currSha {currName=$2;currSha=$1}' ${FILES} | xargs rm
+rm -- ${FILES}
+
+II начин:
+#!/bin/bash
+find $1 -type f | xargs sha256sum | tr -s ' ' | sort -k1,1 -k2,2 
+| awk 'BEGIN {currSha=$1} {if ($1==currSha) print $2; else currSha=$1}' | xargs rm
+
+III начин (не е верен но идеята не е лоша ;д):
+#!/bin/bash
+find $1 -type f | xargs sha256sum | tr -s ' ' | sort -t ' ' -k1,1 -k2,2 | rev | uniq -f 1 | rev | xargs rm // това ни дава файловете, които
+													   // трябва да останат
+
+05-b-6800.txt
+#!/bin/bash
+if [[ $# -eq 2 && "$2" != "-a" ]]
+then
+    echo "Invalid second argument"
+    exit 1
+fi
+hiddenDirs=$(find $1 -type d -name '.*' -printf "%f\n")
+if [[ $# -eq 2 && "$2" == "-a" ]]
+then
+        find $1 -type f -name '.*' -printf '%f (%s bytes)\n'
+        for d in ${hiddenDirs}; do
+            echo "$d ($(find $1/$d | wc -l)) entries"
+        done
+fi
+find $1 -type f ! -name ".*" -printf '%f (%s bytes)\n'
+nonHiddenDirs=$(find $1 -type d ! -name ".*" -printf "%f\n" | tail -n +2)
+for d in ${nonHiddenDirs}; do
+    echo "$d ($(find $1/$d | wc -l)) entries"
+done
+
+05-b-7000.txt
+#!/bin/bash
+read str
+for f in $@; do
+    egrep -c "${str}" $f
+done
+
+05-b-7100.txt
+#!/bin/bash
+find $1 -type f -size +$2c
+
+05-b-7200.txt
+#!/bin/bash
+for i in $@; do
+    if [ -d $i ]; then
+        echo "matching files in $i are:"
+        find $i -type f -size -$(find $i -type f | wc -l)c -printf '%p\n'
+    elif [ -r $i ]; then
+        echo "$i is readable file"
+    fi
+done
+
+05-b-7500.txt
+#!/bin/bash
+if [ $# -ne 2 ]; then
+    exit 1
+fi
+GUESS=$(( (RANDOM % $2) + $1  ))
+TRIES=1
+while  read -p "Guess? " NUM; do
+    if [ ${NUM} -gt ${GUESS} ]; then
+        echo "...smaller!"
+    elif [ ${NUM} -lt ${GUESS} ]; then
+        echo "...bigger!"
+    else
+        echo "RIGHT! Guessed ${GUESS} in ${TRIES} tries"
+        break;
+    fi
+    TRIES=$(( TRIES+1 ))
+done
+
+05-b-7550.txt
+#!/bin/bash
+ps -u $1 -o pid=,stat= | awk '$2=="R+" {print $1}' | xargs kill -9
+
+05-b-7700.txt
+#!/bin/bash
+if [ $# -ne 2 ]; then
+    exit 1
+fi
+find $1 -type f -size +$2c -printf '%s\n' | awk '{sum+=$1} END {print sum}'
+
+05-b-7800.txt
+I начин:
+#!/bin/bash
+DIRS=$(echo ${PATH} | sed -E 's/:/ /g')
+COUNT=0
+for i in ${DIRS}; do
+    COUNT=$(( COUNT+$(find $i -type f -executable | wc -l) ))
+done
+echo ${COUNT}
+
+II начин:
+#!/bin/bash
+sed 's/:/\n/g' <(echo $PATH) | xargs -I {} find {} -type f -executable | wc -l | awk '{sum+=$1} END {print sum}'
+
+05-b-8000.txt
+I начин:
+#!/bin/bash
+ps -u $1 -o rss=,vsz= | sort -n -k 2,2 | egrep -v " *0 *0" | awk '{print $1/$2}'
+
+II начин:
+#!/bin/bash
+F=$(mktemp)
+ps -u $1 -o rss=,vsz= | awk '{print $1,$2}' > ${F}
+while read rss vsz; do
+    echo "$vsz $(echo "scale=2; ${vsz}/${rss}" | bc)"
+done < ${F} | sort -n -r -k1,1 | cut -d ' ' -f2
+rm -- $F
+
+III начин:
+#!/bin/bash
+F=$(mktemp)
+ps -u $1 -o rss=,vsz= | awk '{print $1,$2}' > ${F}
+while read line; do
+    awk '{print $2,$2/$1}' <(echo ${line})
+done < ${F} | sort -n -r -k1,1 | cut -d ' ' -f2
+rm -- ${F}
+
+05-b-9100.txt
+I начин:
+#!/bin/bash
+EXT=$(find $1 -type f | rev | cut -d '/' -f 1 | rev | egrep -o '\..+$' | tr -d '\.' | sort | uniq -c | sort -n -k 1,1 | rev | cut -d ' ' -f 1 | rev)
+for i in ${EXT}; do
+    mkdir $2/$i
+    find $1 -type f | egrep "$i$" | xargs cp -t $2/$i
+done
+
+II начин:
+#!/bin/bash
+src=$1
+dst=$2
+files=$(find $src -type f -printf "%p\n")
+ext=$(find $src -type f -printf "%f\n" | egrep ".*\..+" | sed -E 's/^.*\.(.+)$/\1/g' | sort | uniq)
+for e in ${ext}; do
+    mkdir -p ${dst}/${e}
+    egrep ".*\.$e$" <(echo "${files}") | xargs cp -t ${dst}/${e}
+done
+
+05-b-9200.txt
+vi ~/.bashrc
+touch remove.log
+export LOG=remove.log
+#!/bin/bash
+ARG=0
+if [ $1 == "-r" ]; then
+    ARG=1
+    shift 1
+fi
+for i in $@; do
+    if [ -f $i ]; then
+        rm $i
+        echo "[$(date "+%Y-%m-%d %H:%M:%S")] Removed file $i" >> $LOG
+    elif [ -d $i ]; then
+        if [ $ARG -eq 1 ]; then
+            rm -r $i
+            echo "[$(date "+%Y-%m-%d %H:%M:%S")] Removed directory recursively $i" >> $LOG
+        else
+            if [ $(find $i | wc -l) -eq 1 ]; then
+                rmdir $i
+                echo "[$(date "+%Y-%m-%d %H:%M:%S")] Removed directory $i" >> $LOG
+            else
+                echo "Can't remove non-empty directory $i" >> $LOG
+            fi
+        fi
+    fi
+done
+
+05-b-9500.txt
+#!/bin/bash
+if [ $1 == "-r" ]; then
+    echo -e "\033[0;31m $2"
+elif [ $1 == "-g" ]; then
+    echo -e "\033[0;32m $2"
+elif [ $1 == "-b" ]; then
+    echo -e "\033[0;34m $2"
+fi
+echo -e '\033[0m'
+
+05-b-9501.txt
+#!/bin/bash
+if [ $# -ne 1 ]; then
+    exit 1
+fi
+ROWS=$(cat /dev/stdin)
+if [ $1 == "-x" ]; then
+     echo -e "${ROWS}"
+     exit 0
+fi
+START=-1
+if [ $1 == "-r" ]; then
+    START=1
+elif [ $1 == "-b" ]; then
+    START=2
+elif [ $1 == "-g" ]; then
+    START=3
+fi
+echo "${ROWS}" | awk -v start=$START 'start==1 {print "\033[0;31m"$0""} start==2 {print "\033[0;34m"$0""}
+                start==3 {print "\033[0;32m"$0""; start=0} {start+=1}'
+echo -e '\033[0m'
+
+05-b-9600.txt
+#!/bin/bash
+ARG=0
+if [ $1 == "-r" ]; then
+    ARG=1
+    shift 1
+fi
+for i in $@; do
+    NAME_DATE=$(stat -c %n_%y $i | rev | cut -d '/' -f 1 | rev | cut -d '.' -f 1 | sed -e 's/ /-/' | sed -e 's/:/-/g')
+    if [ -f $i ]; then
+        gzip $i
+        mv $i.gz $BACKUP/$NAME_DATE".gz"
+    elif [ -d $i ]; then
+        if [ $ARG -eq 1 ]; then
+            tar -zcf $BACKUP/$NAME_DATE".tgz" $i
+            rm -r $i
+        else
+            if [ $(find $i | wc -l) -eq 1 ]; then
+                tar -zcf $BACKUP/$NAME_DATE".tgz" $i
+                rmdir $i
+            else
+                echo "error $i is not empty, will not delete"
+            fi
+        fi
+    fi
+done
+
+???05-b-9601.txt

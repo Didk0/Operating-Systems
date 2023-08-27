@@ -1,0 +1,2179 @@
+Зад. 58 2016-SE-01 
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <string.h>
+int compare(const void*, const void*);
+int main(const int argc, char* argv[])
+{
+    int fd1, fd2;
+    if (argc != 3)
+        errx(1, "Wrong number of arguments");
+    if ((fd1 = open(argv[1], O_RDONLY)) == -1)
+        err(2, "Couldn't open %s\n", argv[1]);
+    if ((fd2 = open(argv[2], O_WRONLY|O_CREAT|O_TRUNC, S_IWUSR|S_IRUSR)) == -1)
+        err(3, "Couldn't open %s\n", argv[2]);
+    struct stat sb;
+    if (stat(argv[1], &sb) == -1)
+        err(4, "Stat error");
+    int size = sb.st_size;
+    char* arr = malloc(size);
+    if (arr == NULL)
+        err(5, "Not enough memory");
+    char c;
+    int ind=0, sz;
+    while ((sz = read(fd1, &c, sizeof(c))) == sizeof(c))
+        arr[ind++] = c;
+    if (sz == -1)
+        err(6, "Error while reading");
+    qsort(arr, size, sizeof(char), compare);
+    for (int i=0; i<size; i++)
+    {
+        if (write(fd2, &arr[i], sizeof(arr[i])) != sizeof(arr[i]))
+            err(7, "Error while writing");
+    }
+    free(arr);
+    close(fd1);
+    close(fd2);
+    exit(0);
+}
+int compare(const void* a, const void* b){
+    return strcmp(a,b);
+}
+
+Зад. 59 2016-SE-02 
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <stdint.h>
+int main(const int argc, char* argv[])
+{
+    int fd1, fd2, fd3;
+    if (argc != 4) {
+        errx(1, "Wrong number of arguments");
+    }
+
+    if ((fd1 = open(argv[1], O_RDONLY)) == -1){
+        err(2, "Couldn't open %s\n", argv[1]);
+    }
+    if ((fd2 = open(argv[2], O_RDONLY)) == -1){
+        err(3, "Couldn't open %s\n", argv[2]);
+    }
+    if ((fd3 = open(argv[3], O_WRONLY|O_CREAT|O_TRUNC, S_IWUSR|S_IRUSR)) == -1){
+        err(4, "Couldn't open %s\n", argv[3]);
+    }
+    struct stat s;
+    if (stat(argv[1], &s) == -1){
+        err(5, "stat error\n");
+    }
+    if ((s.st_size / 4) % 2 != 0){
+        errx(6, "wrong size of %s\n", argv[1]);
+    }
+    int pairs = (s.st_size / 4) / 2;
+    uint32_t first, second, num;
+    if (stat(argv[2], &s) == -1){
+        err(6, "stat error\n");
+    }
+    int size2 = s.st_size / 4;
+    for(int i=0; i<pairs; i++)
+    {
+        if (read(fd1, &first, sizeof(first)) != sizeof(first)){
+            err(7, "read error\n");
+        }
+        if (read(fd1, &second, sizeof(second)) != sizeof(second)){
+            err(8, "read error\n");
+        }
+        int where;
+        if (first == 0){
+            where = 0;
+        }
+        else {
+            where = first * 4 - 4;
+        }
+        if (first >= (uint32_t)size2){
+            if(ftruncate(fd3, 0) == -1){
+                err(9, "truncate error\n");
+            }
+            errx(10, "wrong position\n");
+        }
+        if (lseek(fd2, where, SEEK_SET) == -1){
+            err(11, "lseek error\n");
+        }
+        for(uint32_t j=0; j<second; j++)
+        {
+            if (read(fd2, &num, sizeof(num)) != sizeof(num)){
+                err(12, "read error\n");
+            }
+            if (write(fd3, &num, sizeof(num)) != sizeof(num)){
+                err(13, "write error\n");
+            }
+        }
+    }
+    close(fd1);
+    close(fd2);
+    close(fd3);
+    exit(0);
+}
+
+Зад. 60 2016-SE-03
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+int compar(const void* a, const void* b);
+int createTemp(void);
+int compar(const void* a, const void* b) {
+    const uint32_t* ca = (const uint32_t*) a;
+    const uint32_t* cb = (const  uint32_t*) b;
+    return *ca - *cb;
+}
+int createTemp(void) {
+    int fd;
+    char name[11];
+    strncpy(name, "fileXXXXXX", 11);
+    if ((fd = mkstemp(name)) == -1) {
+        err(8, "Temp error");
+    }
+    return fd;
+}
+int main(const int argc, char* argv[])
+{
+    int fd;
+    if (argc != 2){
+        errx(1, "Wrong number of arguments");
+    }
+    if ((fd = open(argv[1], O_RDONLY)) == -1) {
+        err(2, "Couldn't open %s\n", argv[1]);
+    }
+    struct stat s;
+    if (fstat(fd, &s) == -1) {
+        err(3, "Stat error");
+    }
+    if (s.st_size % 4 != 0) {
+        errx(4, "Not correct size of file %s\n", argv[1]);
+    }
+    int size = s.st_size / 4;
+    if (size > 100000000){
+        errx(5, "Too large file %s\n", argv[1]);
+    }
+    int half = size/2;
+    int rest = size - half;
+    uint32_t* arr = malloc(half*sizeof(uint32_t));
+    if (arr == NULL) {
+    	err(6, "Not enough memory");
+    }
+    for (int i=0; i<half; i++) {
+        if (read(fd, &arr[i], sizeof(uint32_t)) < 0) {
+            err(7, "Read error");
+        }
+    }
+    qsort(arr, half, sizeof(uint32_t), compar);
+    int fdt1 = createTemp();
+    for (int i=0; i<half; i++){
+        if (write(fdt1, &arr[i], sizeof(uint32_t)) < 0){
+            err(9, "Write error");
+        }
+    }
+    if (lseek(fdt1, 0, SEEK_SET) == -1){
+	err(10, "lseek error");
+    }
+    free(arr);
+    arr = malloc(rest*sizeof(uint32_t));
+    if(arr == NULL) {
+        err(11, "Not enough memory");
+    }
+    for (int i = 0; i < rest; i++){
+        if (read(fd, &arr[i], sizeof(uint32_t)) < 0){
+            err(12, "Read error");
+        }
+    }
+    int fdt2 = createTemp();
+    qsort(arr, rest, sizeof(uint32_t), compar);
+    for(int i=0; i<rest; i++){
+        if (write(fdt2, &arr[i], sizeof(uint32_t)) < 0) {
+            err(13, "Write error");
+        }
+    }
+    free(arr);
+    if (lseek(fdt2, 0, SEEK_SET) == -1){
+	err(14, "lseek error");
+    }
+    int out;
+    if((out = open("out", O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR)) == -1) {
+        err(15, "Open error");
+    }
+    uint32_t left;
+    uint32_t right;
+    int h = 0;
+    int r = 0;
+    if(read(fdt1, &left, sizeof(uint32_t)) == sizeof(uint32_t)){
+        h++;
+    }
+    if (read(fdt2, &right, sizeof(uint32_t)) == sizeof(uint32_t)){
+         r++;
+    }
+    while (h <= half && r <= rest){
+        if (left < right){
+            write(out, &left, sizeof(uint32_t));
+            read(fdt1, &left, sizeof(uint32_t));
+            h++;
+        }
+        else{
+            write(out, &right, sizeof(uint32_t));
+            read(fdt2, &right, sizeof(uint32_t));
+            r++;
+        }
+    }
+    while (h <= half){
+        write(out, &left, sizeof(left));
+        read(fdt1, &left, sizeof(left));
+        h++;
+    }
+    while (r <= rest) {
+        write(out, &right, sizeof(right));
+        read(fdt2, &right, sizeof(right));
+        r++;
+    }
+    close(fd);
+    close(fdt1);
+    close(fdt2);
+    close(out);
+    exit(0);
+}
+
+Зад. 61 2017-IN-01
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <stdint.h>
+struct Complect {
+    uint16_t pos;
+    uint8_t len;
+    uint8_t unused;
+};
+int main(const int argc, char* argv[])
+{
+    int fd11, fd12, fd21, fd22;
+    if (argc != 5){
+        errx(1, "Wrong number of arguments");
+    }
+    if ((fd11 = open(argv[1], O_RDONLY)) == -1){
+        err(2, "Couldn't open %s", argv[1]);
+    }
+    if ((fd12 = open(argv[2], O_RDONLY)) == -1){
+        err(3, "Couldn't open %s", argv[2]);
+    }
+    if ((fd21 = open(argv[3], O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR)) == -1){
+        err(4, "Couldn't open %s", argv[3]);
+    }
+    if ((fd22 = open(argv[4], O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR)) == -1){
+        err(5, "Couldn't open %s", argv[4]);
+    }
+    struct stat s;
+    if (fstat(fd11, &s) == -1){
+        err(6, "stat error");
+    }
+    int size = s.st_size;
+    struct Complect comp;
+    int sz;
+    uint16_t currPos = 0;
+    while((sz = read(fd12, &comp, sizeof(comp))) == sizeof(comp))
+    {
+        if (comp.pos >= size) {
+            errx(7, "wrong offset");
+        }
+        if (lseek(fd11, comp.pos, SEEK_SET) == -1){
+            err(8, "lseek error");
+        }
+        uint8_t c;
+        if (read(fd11, &c, sizeof(c)) < 0){
+            err(9, "read error");
+        }
+        if (c < 0x41 || c > 0x5A){
+            continue;
+        }
+        if (write(fd21, &c, sizeof(c)) < 0){
+            err(10, "write error");
+        }
+        for(uint8_t i = 1; i < comp.len; i++){
+            if (read(fd11, &c, sizeof(c)) < 0){
+                err(11, "read error");
+            }
+            if (write(fd21, &c, sizeof(c)) < 0){
+                err(12, "write error");
+            }
+        }
+        if (write(fd22, &currPos, sizeof(currPos)) < 0){
+            err(13, "write error");
+        }
+        if (write(fd22, &comp.len, sizeof(comp.len)) < 0){
+            err(14, "write error");
+        }
+        if (write(fd22, &comp.unused, sizeof(comp.unused)) < 0){
+            err(15, "write error");
+        }
+        currPos += comp.len;
+    }
+    if (sz == -1){
+	err(16, "read error");
+    }
+    close(fd11);
+    close(fd12);
+    close(fd21);
+    close(fd22);
+    exit(0);
+}
+
+Зад. 62 2017-SE-01
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <sys/stat.h>
+#include <stdint.h>
+struct triple {
+    uint16_t offset;
+    uint8_t oldbyte;
+    uint8_t newbyte;
+} triplet;
+int main(const int argc, char* argv[])
+{
+    int fd1, fd2, patch;
+    if (argc != 4){
+        errx(1, "argc");
+    }
+    if ((fd1 = open(argv[1], O_RDONLY)) == -1) {
+        err(2, "open");
+    }
+    if ((fd2 = open(argv[2], O_RDONLY)) == -1) {
+        err(3, "open");
+    }
+    struct stat s;
+    if (fstat(fd1, &s) == -1){
+        err(4, "stat");
+    }
+    off_t size1 = s.st_size;
+    if (fstat(fd2, &s) == -1){
+        err(5, "stat");
+    }
+    off_t size2 = s.st_size;
+    if (size1 != size2){
+        errx(6, "different size");
+    }
+    if ((patch = open(argv[3], O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR)) == -1) {
+        err(7, "open");
+    }
+    uint8_t c1, c2;
+    for (uint16_t i=0; i<s.st_size; i++){
+        if (read(fd1, &c1, sizeof(uint8_t)) != sizeof(uint8_t)
+            || read(fd2, &c2, sizeof(uint8_t)) != sizeof(uint8_t)){
+            err(7, "read");
+        }
+        if (c1 != c2){
+            triplet.offset = i;
+            triplet.oldbyte = c1;
+            triplet.newbyte = c2;
+            if (write(patch, &triplet, sizeof(triplet)) != sizeof(triplet)){
+                err(8, "write");
+            }
+        }
+    }
+    close(fd1);
+    close(fd2);
+    close(patch);
+    exit(0);
+}
+
+Зад. 63 2017-SE-02
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+int main(const int argc, char* argv[])
+{
+    if (argc < 2){
+        errx(1, "argc");
+    }
+    int i = 1, row = 0;
+    if (strcmp(argv[1], "-n") == 0){
+        i = 2;
+        row = 1;
+    }
+    int sz = 0;
+    for(; i<argc; i++){
+        char c;
+        char buffer[100];
+        if (strcmp(argv[i], "-") == 0){
+            while((sz = scanf("%s", &*buffer)) == sizeof(*buffer)){
+                if (row != 0){
+                    if (printf("%d ", row) < 0){
+                        err(2, "printf");
+                    }
+                    row++;
+                }
+                if (printf("%s\n", buffer) < 0){
+                    err(3, "printf");
+                }
+            }
+            if (sz != EOF){
+                err(4, "scanf");
+            }
+        }
+        else{
+            int newLine = 1;
+            int fd;
+            if ((fd = open(argv[i], O_RDONLY)) == -1){
+                err(5, "open");
+            }
+            while((sz = read(fd, &c, sizeof(c))) == sizeof(c)){
+                if (row != 0 && newLine){
+                    if (snprintf(buffer, sizeof(buffer), "%d ", row) < 0){
+                         err(6, "snprintf");
+                    }
+                    if (write(1, &buffer, sizeof(buffer)) != sizeof(buffer)){
+                        err(7, "write");
+                    }
+                    row++;
+                    newLine = 0;
+                }
+                if (c == '\n'){
+                    newLine = 1;
+                }
+                if (write(1, &c, sizeof(c)) != sizeof(c)){
+                    err(8, "write");
+                }
+            }
+            if (sz == -1){
+                err(9, "read");
+            }
+            close(fd);
+        }
+    }
+    exit(0);
+}
+
+Зад. 64 2017-SE-03
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <stdint.h>
+#include <sys/stat.h>
+struct triple{
+    uint16_t offset;
+    uint8_t oldbyte;
+    uint8_t newbyte;
+} t;
+int main(const int argc, char* argv[])
+{
+    int fd1, fd2, patch;
+    if (argc != 4){
+        errx(1, "argc");
+    }
+    if ((patch = open(argv[3], O_RDONLY)) == -1){
+        err(4, "open");
+    }
+    struct stat s;
+    if (fstat(patch, &s) == -1)
+        err(2, "stat");
+    if (s.st_size % 4 != 0)
+        errx(7, "wrong format");
+    if ((fd1 = open(argv[1], O_RDONLY)) == -1){
+        err(3, "open");
+    }
+    if (fstat(fd1, &s) == -1)
+        err(8, "stat");
+    int size1 = s.st_size;
+    if ((fd2 = open(argv[2], O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR)) == -1){
+        err(5, "open");
+    }
+    uint8_t c;
+    int sz;
+    while((sz = read(fd1, &c, sizeof(c))) == sizeof(c)){
+        if (write(fd2, &c, sizeof(c)) != sizeof(c)){
+            err(11, "write");
+        }
+    }
+    if (sz == -1){
+        err(10, "read");
+    }
+    while ((sz = read(patch, &t, sizeof(t))) == sizeof(t)) {
+        if (t.offset > size1){
+            errx(9, "wrong offset");
+        }
+        if (lseek(fd1, t.offset, SEEK_SET) == -1){
+            err(12, "lseek");
+        }
+        if (read(fd1, &c, sizeof(c)) != sizeof(c)){
+            err(13, "read");
+        }
+        if (c != t.oldbyte){
+            errx(14, "wrong format");
+        }
+        if (lseek(fd2, t.offset, SEEK_SET) == -1){
+            err(15, "lseek");
+        }
+        if (write(fd2, &t.newbyte, sizeof(t.newbyte)) != sizeof(t.newbyte)){
+            err(16, "write");
+        }
+    }
+    if (sz == -1){
+        err(6, "read");
+    }
+    close(fd1);
+    close(fd2);
+    close(patch);
+    exit(0);
+}
+
+Зад. 65 2017-SE-04
+I начин:
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <stdint.h>
+int main(const int argc, char* argv[])
+{
+    int fd, sz;
+    char c;
+    if (argc == 1){
+        while((sz = read(0, &c, 1)) == 1){
+            if(write(1, &c, 1) != 1){
+                err(1, "write");
+            }
+        }
+        if (sz == -1){
+            err(4, "read");
+        }
+    }
+    else {
+        for (int i=1; i<argc; i++){
+            if(*argv[i] == '-'){
+                while(read(0, &c, 1) == 1){
+                    if(write(1, &c, 1) != 1){
+                        err(3, "write");
+                    }
+                }
+                continue;
+            }
+            if ((fd = open(argv[i], O_RDONLY)) == -1){
+                err(2, "open");
+            }
+            while ((sz = read(fd, &c, 1)) == 1){
+                if (write(1, &c, 1) != 1){
+                    err(6, "write");
+                }
+            }
+            if (sz == -1){
+                err(7, "read");
+            }
+        }
+    }
+    exit(0);
+}
+
+II начин (със scanf и повече проверки):
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+int main(const int argc, char* argv[])
+{
+    if (argc < 1){
+        errx(1, "argc");
+    }
+    int sz = 0;
+    char buffer[100];
+    if (argc == 1){
+        while((sz = scanf("%s", &*buffer)) == sizeof(*buffer)){
+            if (printf("%s\n", buffer) != sizeof(buffer)){
+                err(5, "printf");
+            }
+        }
+        if (sz != EOF){
+            err(2, "scanf");
+        }
+    }
+    else
+    {
+        for(int i=1; i<argc; i++){
+            if (strcpy(buffer, argv[i]) == NULL){
+                err(8, "strcpy");
+            }
+            if (buffer[0] == '-'){
+                while((sz = scanf("%s", &*buffer)) == sizeof(*buffer)){
+                    if (printf("%s\n", buffer) < 0){
+                        err(6, "printf");
+                    }
+                }
+                if (sz != EOF){
+                    err(3, "scanf");
+                }
+            }
+            else
+            {
+                char c;
+                int fd;
+                if ((fd = open(argv[i], O_RDONLY)) == -1){
+                    err(4, "open");
+                        err(7, "write");
+                    }
+                }
+                if (sz == -1){
+                    err(5, "read");
+                }
+                close(fd);
+            }
+        }
+    }
+    exit(0);
+}
+
+Зад. 66 2018-SE-01
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+int main(const int argc, char* argv[])
+{
+    if (argc != 3){
+        errx(1, "argc");
+    }
+    char buffer[100];
+    read(0, &buffer, sizeof(buffer));
+    int size = strlen(buffer);
+    buffer[size] = '\0';
+    if (strcmp(argv[1], "-d") == 0){
+        while(*argv[2]){
+            for(int i=0; i<size; i++){
+                if (buffer[i] == *argv[2]){
+                    for(int j=i; j<size-1; j++){
+                        buffer[j] = buffer[j+1];
+                    }
+                    size--;
+                    i--;
+                }
+            }
+            argv[2]++;
+        }
+    }
+    else if (strcmp(argv[1], "-s") == 0){
+        while(*argv[2]){
+            for(int i=0; i<size; i++){
+                if (i < size - 1 && buffer[i] == *argv[2] && buffer[i+1] == *argv[2]){
+                    for(int j=i; j<size-1; j++){
+                        buffer[j] = buffer[j+1];
+                    }
+                    size--;
+                    i--;
+                }
+            }
+            argv[2]++;
+        }
+    }
+    else
+    {
+        int size1 = strlen(argv[1]);
+        int size2 = strlen(argv[2]);
+        if (size1 != size2){
+            errx(2, "wrongly sized arrays given");
+        }
+        while(*argv[1] && *argv[2]){
+            for(int i=0; i<size; i++){
+                if (buffer[i] == *argv[1]){
+                    buffer[i] = *argv[2];
+                }
+            }
+            argv[1]++;
+            argv[2]++;
+        }
+    }
+    for(int i=0; i<size; i++){
+        write(1, &buffer[i], sizeof(buffer[i]));
+    }
+    exit(0);
+}
+
+Зад. 67 2018-SE-02
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+int compar(const void* a, const void* b);
+int createTemp(void);
+int compar(const void* a, const void* b) {
+    const uint32_t* ca = (const uint32_t*) a;
+    const uint32_t* cb = (const  uint32_t*) b;
+    return *ca - *cb;
+}
+int createTemp(void) {
+    int fd;
+    char t[12];
+    strncpy(t, "peshoXXXXXX", 12);
+    if ((fd = mkstemp(t)) == -1) {
+        err(8, "temp");
+    }
+    return fd;
+}
+int main(const int argc, char* argv[])
+{
+    if (argc != 3){
+        errx(1, "argc");
+    }
+    int fd1, fd2;
+    if ((fd1 = open(argv[1], O_RDONLY)) == -1) {
+        err(2, "open");
+    }
+    if ((fd2 = open(argv[2], O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR)) == -1) {
+        err(3, "open");
+    }
+    struct stat s;
+    if (fstat(fd1, &s) == -1) {
+        err(4, "stat");
+    }
+    if (s.st_size > 4194304*4) {
+        errx(4, "too large file %s\n", argv[1]);
+    }
+    if (s.st_size % 4 != 0){
+        errx(5, "wrong file size %s\n", argv[1]);
+    }
+    int size = s.st_size / 4;
+    int half = size / 2;
+    int rest = size - half;
+    uint32_t* arr = malloc(half*sizeof(uint32_t));
+    if (!arr) {
+        err(6, "malloc");
+    }
+    for (int i=0; i<half; i++) {
+        if (read(fd1, &arr[i], sizeof(uint32_t)) != sizeof(uint32_t)) {
+            err(7, "read");
+        }
+    }
+    qsort(arr, half, sizeof(uint32_t), compar);
+    int fdt1 = createTemp();
+    for (int i=0; i<half; i++){
+        if (write(fdt1, &arr[i], sizeof(uint32_t)) != sizeof(uint32_t)){
+            err(9, "write");
+        }
+    }
+    lseek(fdt1, 0, SEEK_SET);
+    free(arr);
+    arr = malloc(rest*sizeof(uint32_t));
+    if(!arr) {
+        err(10, "malloc");
+    }
+    for (int i = 0; i < rest; i++){
+        if (read(fd1, &arr[i], sizeof(uint32_t)) != sizeof(uint32_t)){
+            err(11, "Read error");
+        }
+    }
+    qsort(arr, rest, sizeof(uint32_t), compar);
+    int fdt2 = createTemp();
+    for(int i=0; i<rest; i++){
+        if (write(fdt2, &arr[i], sizeof(uint32_t)) != sizeof(uint32_t)) {
+            err(12, "Write error");
+        }
+    }
+    free(arr);
+    lseek(fdt2, 0, SEEK_SET);
+    uint32_t left;
+    uint32_t right;
+    int h = 0;
+    int r = 0;
+    if(read(fdt1, &left, sizeof(uint32_t)) == sizeof(uint32_t)){
+        h++;
+    }
+    else{
+	err(21, "read");
+    }
+    if (read(fdt2, &right, sizeof(uint32_t)) == sizeof(uint32_t)){
+        r++;
+    }
+    else{
+	err(22, "read");
+    }
+    while (h <= half && r <= rest){
+        if (left < right){
+            if(write(fd2, &left, sizeof(uint32_t)) != sizeof(uint32_t)){
+                err(13, "write");
+            }
+            h++;
+            if(h<=half && read(fdt1, &left, sizeof(uint32_t)) != sizeof(uint32_t)){
+                err(14, "read");
+            }
+        }
+        else{
+            if(write(fd2, &right, sizeof(uint32_t)) != sizeof(uint32_t)){
+                err(15, "write");
+            }
+            r++;
+            if(r<=rest && read(fdt2, &right, sizeof(uint32_t)) != sizeof(uint32_t)){
+                err(16, "read");
+            }
+        }
+    }
+    while (h <= half){
+        if(write(fd2, &left, sizeof(uint32_t)) != sizeof(uint32_t)){
+            err(17, "write");
+        }
+        h++;
+        if(h<=half && read(fdt1, &left, sizeof(uint32_t)) != sizeof(uint32_t)){
+            err(18, "read");
+        }
+    }
+    while (r <= rest) {
+        if(write(fd2, &right, sizeof(right)) != sizeof(right)){
+            err(19, "write");
+        }
+        r++;
+        if(r<=half && read(fdt2, &right, sizeof(right)) != sizeof(right)){
+            err(20, "read");
+        }
+    }
+    close(fd1);
+    close(fd2);
+    close(fdt1);
+    close(fdt2);
+    exit(0);
+}
+
+Зад. 68 2018-SE-03
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdbool.h>
+int createTemp(void);
+int createTemp(void) {
+    int fd;
+    char t[12];
+    strncpy(t, "peshoXXXXXX", 12);
+    if ((fd = mkstemp(t)) == -1) {
+        err(8, "temp");
+    }
+    return fd;
+}
+int main(const int argc, char* argv[])
+{
+    if (argc != 3 && argc != 5){
+        errx(1, "argc");
+    }
+    char c;
+    int fd = createTemp(), num = 0;
+    while(read(0, &c, 1) == 1){
+        if(write(fd, &c, 1) != 1){
+            err(2, "write");
+        }
+    }
+    if (lseek(fd, 0, SEEK_SET) == -1){
+        err(3, "lseek");
+    }
+    if (argc == 3 && strcmp(argv[1], "-c") == 0){
+        if (strlen(argv[2]) == 1 && (argv[2][0] - '0' >= 1 && argv[2][0] - '0' <= 9)){
+            while(read(fd, &c, 1) == 1){
+                num++;
+                if (num == argv[2][0] - '0'){
+                    if(write(1, &c, 1) != 1){
+                        err(4, "write");
+                    }
+                }
+                if (c == '\n'){
+                    num = 0;
+                    dprintf(1, "\n");
+                }
+            }
+        }
+        else if (strlen(argv[2]) == 3 && (argv[2][0] - '0' >= 1 && argv[2][0] - '0' <= 9)
+                && (argv[2][2] - '0' >= 1 && argv[2][2] - '0' <= 9) && argv[2][0] - '0' <= argv[2][2] - '0'){
+            while(read(fd, &c, 1) == 1){
+                num++;
+                if (num >= argv[2][0] - '0' && num <= argv[2][2] - '0'){
+                    if(write(1, &c, 1) != 1){
+                        err(7, "write");
+                    }
+                }
+                if (c == '\n'){
+                    num = 0;
+                    dprintf(1, "\n");
+                }
+            }
+        }
+        else errx(5, "input");
+    }
+    else if (argc == 5 && strcmp(argv[1], "-d") == 0 && strcmp(argv[3], "-f") == 0){
+        int fieldNum = 1;
+        if (strlen(argv[4]) == 1 && (argv[4][0] - '0' >= 1 && argv[4][0] - '0' <= 9)){
+            while(read(fd, &c, 1) == 1){
+                if (c == '\n'){
+                    fieldNum = 1;
+                    printf("\n");
+                }
+                if (c == argv[2][0]){
+                    fieldNum++;
+                }
+                else if (fieldNum == argv[4][0] - '0'){
+                    if(write(1, &c, 1) != 1){
+                         err(9, "write");
+                    }
+                }
+            }
+        }
+        else if (strlen(argv[4]) == 3 && (argv[4][0] - '0' >= 1 && argv[4][0] - '0' <= 9)
+                && (argv[4][2] - '0' >= 1 && argv[4][2] - '0' <= 9) && argv[4][0] - '0' <= argv[4][2] - '0'){
+             while(read(fd, &c, 1) == 1){
+                if (c == '\n'){
+                    if (fieldNum > argv[4][2] - '0' || fieldNum < argv[4][2] - '0'){
+                        printf("\n");
+                    }
+                    fieldNum = 1;
+                }
+                if (c == argv[2][0]){
+                    if (fieldNum >= argv[4][0] - '0' && fieldNum < argv[4][2] - '0'){
+                        write(1, &c, 1);
+                    }
+                    fieldNum++;
+                }
+                else if (fieldNum >= argv[4][0] - '0' && fieldNum <= argv[4][2] - '0'){
+                    if(write(1, &c, 1) != 1){
+                         err(9, "write");
+                    }
+                }
+            }
+        }
+    }
+    else errx(8, "input");
+    close(fd);
+    exit(0);
+}
+
+II начин (може би работещ по-вярно):
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+int makeTempFile(void);
+int makeTempFile(void){
+	int fd;
+	char temp[12];
+	strncpy(temp, "tempXXXXXXX", 12);
+	if ((fd = mkstemp(temp)) == -1){
+		err(7, "temp");
+	}
+	return fd;
+}
+int main(const int argc, char* argv[])
+{
+	if (argc < 3){
+		errx(1, "argc");
+	}
+	int fdt1 = makeTempFile();
+	char c;
+	while(read(0, &c, sizeof(c)) == sizeof(c)){
+		write(fdt1, &c, sizeof(c));
+	}
+	lseek(fdt1, 0, SEEK_SET);
+	if (strcmp(argv[1], "-c") == 0){
+		if (argc != 3){
+			errx(2, "argc");
+		}
+		if (strlen(argv[2]) == 1){
+			if (*argv[2] < '1' || *argv[2] > '9'){
+				errx(3, "wrong number");
+			}
+			int pos = *argv[2] - '0';	
+			int currPos = 0;
+			while(read(fdt1, &c, sizeof(c)) == sizeof(c)){
+				currPos++;
+				if (currPos == pos && c != '\n'){
+					write(1, &c, sizeof(c));
+				}
+				if (c == '\n'){
+					currPos = 0;
+					printf("\n");
+				}
+			}
+		}
+		else
+		{
+			if (strlen(argv[2]) != 3){
+				errx(4, "wrong argument");
+			}		
+			if (*argv[2] < '1' || *argv[2] > '9' || *(argv[2] + 2) < '1' || *(argv[2] + 2) > '9' || *(argv[2] + 1) != '-'){
+				errx(3, "wrong format");
+			}
+			int from = *argv[2] - '0';
+			int to = *(argv[2]+2) - '0';		
+			int currPos = 0;
+			while(read(fdt1, &c, sizeof(c)) == sizeof(c)){
+				currPos++;
+				if (currPos >= from && currPos <= to && c != '\n'){
+					write(1, &c, sizeof(c));
+				}
+				if (c == '\n'){
+					currPos = 0;
+					printf("\n");
+				}
+			}
+
+		}
+	}
+	else if(strcmp(argv[1], "-d") == 0){
+		if (argc != 5 || strcmp(argv[3], "-f") != 0){
+			errx(5, "argc");
+		}
+		
+		char delim = *argv[2];
+		if (strlen(argv[4]) == 1){
+			if (*argv[4] < '1' || *argv[4] > '9'){
+				errx(6, "wrong number");
+			}
+			
+			int currCol = 1;
+			int col = *argv[4] - '0';
+			while(read(fdt1, &c, sizeof(c)) == sizeof(c)){
+				if (currCol == col && c != '\n'){
+					write(1, &c, sizeof(c));
+				}
+				if (c == delim){
+					currCol++;
+				}
+				if (c == '\n'){
+					currCol = 1;
+					printf("\n");
+				}
+			}
+		}
+		else {
+			if (*argv[4] < '1' || *argv[4] > '9' || argv[4][1] != '-' || argv[4][2] < '1' || argv[4][2] > '9'){
+				errx(6, "wrong number");
+			}			
+			int currCol = 1;
+			int startCol = *argv[4] - '0';
+			int endCol = argv[4][2] - '0';
+			while(read(fdt1, &c, sizeof(c)) == sizeof(c)){
+				if (currCol >= startCol && currCol <= endCol && c != '\n'){
+					write(1, &c, sizeof(c));
+				}
+				if (c == delim){
+					currCol++;
+				}
+				if (c == '\n'){
+					currCol = 1;
+					printf("\n");
+				}
+			}
+
+		}
+	}
+    exit(0);
+}
+
+Зад. 69 2018-SE-04
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdbool.h>
+int compar(const void* a, const void* b);
+int createTemp(void);
+int compar(const void* a, const void* b) {
+    const uint16_t* ca = (const uint16_t*) a;
+    const uint16_t* cb = (const  uint16_t*) b;
+    return *ca - *cb;
+}
+int createTemp(void) {
+    int fd;
+    char t[12];
+    strncpy(t, "peshoXXXXXX", 12);
+    if ((fd = mkstemp(t)) == -1) {
+        err(8, "temp");
+    }
+    return fd;
+}
+int main(const int argc, char* argv[])
+{
+    if (argc != 3){
+        errx(1, "argc");
+    }
+    int fd1, fd2;
+    if ((fd1 = open(argv[1], O_RDONLY)) == -1) {
+        err(2, "open");
+    }
+    if ((fd2 = open(argv[2], O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR)) == -1) {
+        err(3, "open");
+    }
+    struct stat s;
+    if (fstat(fd1, &s) == -1) {
+        err(4, "stat");
+    }
+    if (s.st_size > 65535*2) {
+        errx(4, "too large file %s\n", argv[1]);
+    }
+    if (s.st_size % 2 != 0){
+        errx(5, "wrong file size %s\n", argv[1]);
+    }
+    int size = s.st_size / 2;
+    int half = size / 2;
+    int rest = size - half;
+    uint16_t* arr = malloc(half*sizeof(uint16_t));
+    if (!arr) {
+        err(6, "malloc");
+    }
+    for (int i=0; i<half; i++) {
+        if (read(fd1, &arr[i], sizeof(uint16_t)) != sizeof(uint16_t)) {
+            err(7, "read");
+        }
+    }
+    qsort(arr, half, sizeof(uint16_t), compar);
+    int fdt1 = createTemp();
+    for (int i=0; i<half; i++){
+        if (write(fdt1, &arr[i], sizeof(uint16_t)) != sizeof(uint16_t)){
+            err(9, "write");
+        }
+    }
+    lseek(fdt1, 0, SEEK_SET);
+    free(arr);
+    arr = malloc(rest*sizeof(uint16_t));
+    if(!arr) {
+        err(10, "malloc");
+    }
+    for (int i = 0; i < rest; i++){
+        if (read(fd1, &arr[i], sizeof(uint16_t)) != sizeof(uint16_t)){
+            err(11, "Read error");
+        }
+    }
+    qsort(arr, rest, sizeof(uint16_t), compar);
+    int fdt2 = createTemp();
+    for(int i=0; i<rest; i++){
+        if (write(fdt2, &arr[i], sizeof(uint16_t)) != sizeof(uint16_t)) {
+            err(12, "Write error");
+        }
+    }
+    free(arr);
+    lseek(fdt2, 0, SEEK_SET);
+    uint16_t left;
+    uint16_t right;
+    int h = 0;
+    int r = 0;
+    if (read(fdt1, &left, sizeof(uint16_t)) == sizeof(uint16_t)){
+        h++;
+    }
+    else err(21, "read");
+    if (read(fdt2, &right, sizeof(uint16_t)) == sizeof(uint16_t)){
+        r++;
+    }
+    else err(22, "read");
+    while (h <= half && r <= rest){
+        if (left < right){
+            if(write(fd2, &left, sizeof(uint16_t)) != sizeof(uint16_t)){
+                err(13, "write");
+            }
+            h++;
+            if(h<=half && read(fdt1, &left, sizeof(uint16_t)) != sizeof(uint16_t)){
+                err(14, "read");
+            }
+        }
+        else{
+            if(write(fd2, &right, sizeof(uint16_t)) != sizeof(uint16_t)){
+                err(15, "write");
+            }
+            r++;
+            if(r<=rest && read(fdt2, &right, sizeof(uint16_t)) != sizeof(uint16_t)){
+                err(16, "read");
+            }
+        }
+    }
+    while (h <= half){
+        if(write(fd2, &left, sizeof(uint16_t)) != sizeof(uint16_t)){
+            err(17, "write");
+        }
+        h++;
+        if(h<=half && read(fdt1, &left, sizeof(uint16_t)) != sizeof(uint16_t)){
+            err(18, "read");
+        }
+    }
+    while (r <= rest) {
+        if(write(fd2, &right, sizeof(right)) != sizeof(right)){
+            err(19, "write");
+        }
+        r++;
+        if(r<=half && read(fdt2, &right, sizeof(right)) != sizeof(right)){
+            err(20, "read");
+        }
+    }
+    close(fd1);
+    close(fd2);
+    close(fdt1);
+    close(fdt2);
+    exit(0);
+}
+
+Зад. 70 2019-SE-01
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+#include <sys/wait.h>
+struct Comp{
+    uint32_t id;
+    uint16_t n1;
+    uint16_t n2;
+    uint16_t start;
+    uint16_t end;
+} complect;
+double findAvg(int fd);
+double findAvg(int fd){
+    int sz, count = 0;
+    double result = 0;
+    while ((sz = read(fd, &complect, sizeof(complect))) == sizeof(complect)){
+        count++;
+        result += complect.end - complect.start;
+    }
+    if (sz == -1){
+        err(4, "read");
+    }
+    if (lseek(fd, 0, SEEK_SET) == -1){
+        err(3, "lseek");
+    }
+    result = result / count;
+    return result;
+}
+double findDisp(int fd, double avg);
+double findDisp(int fd, double avg){
+    int sz, count = 0;
+    double result = 0;
+    while ((sz = read(fd, &complect, sizeof(complect))) == sizeof(complect)){
+        count++;
+        result += ((complect.end - complect.start) - avg) * ((complect.end - complect.start) - avg);
+    }
+    if (sz == -1){
+        err(5, "read");
+    }
+    if (lseek(fd, 0, SEEK_SET) == -1){
+        err(6, "lseek");
+    }
+    result = result / count;
+    return result;
+}
+const int SIZE = 2048;
+int main(const int argc, char* argv[])
+{
+    if (argc != 2){
+        err(1, "argc");
+    }
+    int fd;
+    if ((fd = open(argv[1], O_RDONLY)) == -1){
+        err(2, "open");
+    }
+    double average = findAvg(fd);
+    double dispersion = findDisp(fd, average);
+    uint32_t idArr[SIZE]; // масив от уникални id-та, само на потребителите, за които time*time > dispersion
+    int rsz = 0, size = 0, offset = 0;
+    while((rsz = read(fd, &complect, sizeof(complect))) == sizeof(complect)){
+        offset += rsz;
+        uint32_t currId = complect.id;
+        uint16_t time = complect.end - complect.start;
+        if (time * time > dispersion){
+            int found = 0;
+            for (int i=0; i < size; i++){
+                if (idArr[i] == complect.id){
+                    found = 1;
+                    break;
+                }
+            }
+            if (found == 1){
+                continue;
+            }
+            idArr[size++] = complect.id;
+            int rsz2 = 0;
+            uint16_t maxTime = 0;
+            if (lseek(fd, 0, SEEK_SET) == -1){
+                err(7, "lseek");
+            }
+            while((rsz2 = read(fd, &complect, sizeof(complect))) == sizeof(complect)){
+                if (complect.id == currId && maxTime < complect.end - complect.start){
+                    maxTime = complect.end - complect.start;
+                }
+            }
+            if (rsz2 == -1){
+                err(9, "read");
+            }
+            dprintf(1, "user id: %d, max time: %d\n", currId, maxTime);
+            if (lseek(fd, offset, SEEK_SET) == -1){
+                err(8, "lseek");
+            }
+        }
+    }
+    if (rsz == -1){
+        err(10, "read");
+    }
+    close(fd);
+    exit(0);
+}
+
+Зад. 71 2020-IN-01
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdbool.h>
+struct Header{
+    uint32_t magic;
+    uint8_t header_version;
+    uint8_t data_version;
+    uint16_t count;
+    uint32_t reserved1;
+    uint32_t reserved2;
+} header;
+struct Data1{
+    uint16_t offset;
+    uint8_t original;
+    uint8_t new;
+} data1;
+struct Data2{
+    uint32_t offset;
+    uint16_t original;
+    uint16_t new;
+} data2;
+int main(const int argc, char* argv[])
+{
+    if (argc != 4){
+        errx(1, "argc");
+    }
+    int fd1, fd2, patch;
+    if ((patch = open(argv[1], O_RDONLY)) == -1){
+        err(2, "open");
+    }
+    if ((fd1 = open(argv[2], O_RDONLY)) == -1){
+        err(3, "open");
+    }
+    if ((fd2 = open(argv[3], O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR)) == -1){
+        err(4, "open");
+    }
+    char c;
+    int sz;
+    while((sz = read(fd1, &c, 1)) == 1){
+        if (write(fd2, &c, 1) != 1){
+            err(5, "write");
+        }
+    }
+    if (sz == -1){
+        err(6, "read");
+    }
+    if (read(patch, &header, sizeof(header)) != sizeof(header)){
+        err(7, "read");
+    }
+    if (header.magic != 0xEFBEADDE){
+        errx(8, "wrong magic");
+    }
+    if (header.header_version != 0x01){
+        errx(9, "wrong header");
+    }
+    if (header.data_version != 0x00 && header.data_version != 0x01){
+        errx(10, "wrong data");
+    }
+    struct stat s;
+    if (fstat(fd1, &s) == -1){
+        err(17, "stat");
+    }
+    for (int i=0; i<header.count; i++){
+        if (header.data_version == 0x00){
+            if (read(patch, &data1, sizeof(data1)) != sizeof(data1)){
+                err(16, "read");
+            }
+            if (data1.offset > s.st_size){
+                errx(18, "wrong offset");
+            }
+            if (lseek(fd1, data1.offset, SEEK_SET) == -1){
+                err(11, "lseek");
+            }
+            uint8_t byte;
+            if (read(fd1, &byte, sizeof(byte)) != sizeof(byte)){
+                err(12, "read");
+            }
+            if (byte != data1.original){
+                errx(13, "wrong format");
+            }
+            if (lseek(fd2, data1.offset, SEEK_SET) == -1){
+                err(14, "lseek");
+            }
+            if (write(fd2, &data1.new, sizeof(data1.new)) != sizeof(data1.new)){
+                err(15, "write");
+            }
+        }
+        else {
+            if (read(patch, &data2, sizeof(data2)) != sizeof(data2)){
+                err(19, "read");
+            }
+            if (data2.offset > s.st_size){
+                errx(20, "wrong offset");
+            }
+            if (lseek(fd1, data2.offset, SEEK_SET) == -1){
+                err(21, "lseek");
+            }
+            uint16_t word;
+            if (read(fd1, &word, sizeof(word)) != sizeof(word)){
+                err(22, "read");
+            }
+            if (word != data2.original){
+                errx(23, "wrong format");
+            }
+            if (lseek(fd2, data2.offset, SEEK_SET) == -1){
+                err(24, "lseek");
+            }
+            if (write(fd2, &data2.new, sizeof(data2.new)) != sizeof(data2.new)){
+                err(25, "write");
+            }
+        }
+    }
+    close(fd1);
+    close(fd2);
+    close(patch);
+    exit(0);
+}
+
+// трябва да се тества още
+Зад. 72 2020-SE-01
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdbool.h>
+struct interval{
+    uint16_t offset;
+    uint16_t count;
+};
+int main(const int argc, char* argv[])
+{
+    if (argc != 7){
+        errx(1, "argc");
+    }
+    int fds[6];
+    int sizes[6] = {2, 4, 1, 2, 8, 1};
+    for (int i=0; i<5; i++){
+        if ((fds[i] = open(argv[i+1], O_RDONLY)) == -1){
+            err(2, "open");
+        }
+    }
+    if ((fds[5] = open(argv[6], O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR)) == -1){
+        err(3, "open");
+    }
+    struct stat s;
+    uint16_t count = 0;
+    for (int i=0; i<5; i++){
+        uint64_t currCount;
+        if(fstat(fds[i], &s) == -1){
+            err(4, "stat");
+        }
+        if ((s.st_size - 16) % sizes[i] != 0){
+            errx(5, "wrong size");
+        }
+        if (lseek(fds[i], 4, SEEK_SET) == -1){
+            err(6, "lseek");
+        }
+        if (read(fds[i], &currCount, sizes[i]) != sizes[i]){
+            err(7, "read");
+        }
+	if ((long int)currCount != (s.st_size - 16) / sizes[i]){
+            errx(6, "wrong size");
+        }
+        if (i==0){
+            count = currCount;
+        }
+    }
+    struct interval c[4];
+    if (lseek(fds[0], 16, SEEK_SET) == -1){
+        err(13, "lseek");
+    }
+    for(int i=0; i<count; i++){
+        for(int j=0; j<4; j++){
+            if (read(fds[0], &c[j], sizeof(c[j])) != sizeof(c[j])){
+                err(9, "read");
+            }
+        }
+        for(int j=1; j<5; j++){
+            if (lseek(fds[j], 16+c[j-1].offset*sizes[j], SEEK_SET) == -1){
+                err(10, "lseek");
+            }
+            uint64_t elem;
+            for(int k=0; k<c[j-1].count; k++){
+                if (read(fds[j], &elem, sizes[j]) != sizes[j]){
+                    err(11, "read");
+                }
+                if (write(fds[5], &elem, sizes[j]) != sizes[j]){
+                    err(12, "write");
+                }
+            }
+        }
+    }
+    for (int i=0; i<6; i++){
+        close(fds[i]);
+    }
+    exit(0);
+}
+
+Зад. 73 2020-SE-02
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdbool.h>
+int main(const int argc, char* argv[])
+{
+    if (argc != 3){
+        errx(1, "input");
+    }
+    int fd1, fd2, output;
+    if ((fd1 = open(argv[1], O_RDONLY)) == -1){
+        err(2, "open");
+    }
+    if ((fd2 = open(argv[2], O_RDONLY)) == -1){
+        err(3, "open");
+    }
+    int size1, size2;
+    struct stat s;
+    if (fstat(fd1, &s) == -1){
+        err(4, "stat");
+    }
+    size1 = s.st_size;
+    if (fstat(fd2, &s) == -1){
+        err(5, "stat");
+    }
+    size2 = s.st_size;
+    if (size2 % 2 != 0){
+        errx(6, "wrong size");
+    }
+    if (size1 * 8 != size2 / 2){
+        errx(7, "missmatching size");
+    }
+    if ((output = open("output", O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR)) == -1){
+        err(10, "open");
+    }
+    uint8_t currBits;
+    uint16_t currNum;
+    for (int i=0; i<size1; i++){
+        uint8_t mask = 1;
+	mask <<=7;
+        if (read(fd1, &currBits, sizeof(currBits)) != sizeof(currBits)){
+            err(8, "read");
+        }
+        for (int j=0; j<8; j++){
+            if (read(fd2, &currNum, sizeof(currNum)) != sizeof(currNum)){
+                err(9, "read");
+            }
+            if ((currBits & mask) == mask){
+                if (write(output, &currNum, sizeof(currNum)) != sizeof(currNum)){
+                    err(11, "write");
+                }
+            }
+            mask >>= 1;
+        }
+    }
+    close(fd1);
+    close(fd2);
+    close(output);
+    exit(0);
+}
+
+Зад. 74 2021-SE-01
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdbool.h>
+int main(const int argc, char* argv[])
+{
+    if (argc != 3){
+        errx(1, "input");
+    }
+    int fd1, fd2;
+    if ((fd1 = open(argv[1], O_RDONLY)) == -1){
+        err(2, "open");
+    }
+    if ((fd2 = open(argv[2], O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR)) == -1){
+        err(3, "open");
+    }
+    uint8_t currBits;
+    int sz;
+    while((sz = read(fd1, &currBits, sizeof(currBits))) == sizeof(currBits)){
+        uint16_t res = 0;
+        uint8_t mask = 128;
+        uint16_t mask1 = 1;
+        mask1 <<= 15;
+        uint16_t mask2 = 1;
+        mask2 <<= 14;
+        for (int i=0; i<8; i++){
+            if ((currBits & mask) == mask){
+                res |= mask1;
+            }
+            else {
+                res |= mask2;
+            }
+            mask >>=1;
+            mask1 >>= 2;
+            mask2 >>= 2;
+        }
+        if (write(fd2, &res, sizeof(res)) != sizeof(res)){
+            err(4, "write");
+        }
+    }
+    if (sz == -1){
+        err(5, "read");
+    }
+    close(fd1);
+    close(fd2);
+    exit(0);
+}
+
+Зад. 75 2021-SE-02
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdbool.h>
+int main(const int argc, char* argv[])
+{
+    if (argc != 3){
+        errx(1, "input");
+    }
+    int fd1, fd2;
+    if ((fd1 = open(argv[1], O_RDONLY)) == -1){
+        err(2, "open");
+    }
+    if ((fd2 = open(argv[2], O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR)) == -1){
+        err(3, "open");
+    }
+    uint16_t currBits;
+    int sz;
+    while((sz = read(fd1, &currBits, sizeof(currBits))) == sizeof(currBits)){
+        uint8_t res = 0;
+        uint8_t mask = 128;
+        uint16_t mask1 = 1;
+        mask1 <<= 15;
+        for (int i=0; i<8; i++){
+            if ((currBits & mask1) == mask1){
+                res |= mask;
+            }
+            mask >>=1;
+            mask1 >>= 2;
+        }
+        if (write(fd2, &res, sizeof(res)) != sizeof(res)){
+            err(4, "write");
+        }
+    }
+    if (sz == -1){
+        err(5, "read");
+    }
+    close(fd1);
+    close(fd2);
+    exit(0);
+}
+
+Зад. 76 2021-SE-03
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <stdio.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+#include <sys/wait.h>
+#include <time.h>
+int main(const int argc, char* argv[])
+{
+    if (argc != 3){
+        err(1, "argc");
+    }
+    int fd1, fd2;
+    if ((fd1 = open(argv[1], O_RDONLY)) == -1){
+        err(2, "open");
+    }
+    if ((fd2 = open(argv[2], O_WRONLY | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR)) == -1){
+        err(3, "open");
+    }
+    struct stat s;
+    if (fstat(fd1, &s) == -1){
+        err(4, "fstat");
+    }
+    if (s.st_size % 2 != 0){
+        errx(5, "wrong size");
+    }
+    uint32_t arrN = s.st_size / 2;
+    dprintf(fd2, "#include <stdint.h>\nuint32_t arrN = %d;\nconst uint16_t arr[] = { ", arrN);
+    uint16_t num;
+    if (read(fd1, &num, sizeof(num)) != sizeof(num)){
+        err(6, "read");
+    }
+    dprintf(fd2, "%d", num);
+    int sz = 0;
+    while((sz = read(fd1, &num, sizeof(num))) == sizeof(num)){
+        dprintf(fd2, ", %d", num);
+    }
+    if (sz == -1){
+        err(7, "read");
+    }
+    dprintf(fd2, " };\n");
+    if (fstat(fd2, &s) == -1){
+        err(8, "fstat");
+    }
+    if ((s.st_size / 2) > 524288){
+        errx(9, "too large header file");
+    }
+    exit(0);
+}
+
+Зад. 77 2022-IN-01
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdbool.h>
+int main(const int argc, char* argv[])
+{
+    if (argc != 4){
+        errx(1, "input");
+    }
+    int list, data, out;
+    if ((list = open(argv[1], O_RDONLY)) == -1){
+        err(2, "open");
+    }
+    if ((data = open(argv[2], O_RDONLY)) == -1){
+        err(3, "open");
+    }
+    if ((out = open(argv[3], O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR)) == -1){
+        err(4, "open");
+    }
+    uint16_t magic;
+    if (read(list, &magic, sizeof(magic)) == -1){
+        err(5, "read");
+    }
+    if (magic != 0x5A4D){
+        errx(6, "wrong magic");
+    }
+    if (read(data, &magic, sizeof(magic)) == -1){
+        err(7, "read");
+    }
+    if (magic != 0x5A4D){
+        errx(8, "wrong magic");
+    }
+    uint16_t filetype;
+    if (read(list, &filetype, sizeof(filetype)) == -1){
+        err(9, "read");
+    }
+    if (filetype != 1){
+        errx(10, "wrong file type");
+    }
+    if (read(data, &filetype, sizeof(filetype)) == -1){
+        err(11, "read");
+    }
+    if (filetype != 2){
+        errx(12, "wrong filetype");
+    }
+    uint32_t count;
+    if (read(list, &count, sizeof(count)) == -1){
+        err(14, "read");
+    }
+    if (lseek(list, 8, SEEK_SET) == -1){
+        err(13, "lseek");
+    }
+    uint32_t outCount = 0;
+    uint8_t listPos, listVal;
+    uint64_t toWrite;
+    for (uint32_t i=0; i<count; i++){
+        if (read(list, &listPos, sizeof(listPos)) == -1){
+            err(15, "read");
+        }
+        if (read(list, &listVal, sizeof(listVal)) == -1){
+            err(16, "read");
+        }
+        if (listVal > outCount){
+            outCount = listVal + 1;
+        }
+        if (lseek(data, 8 + listPos*4, SEEK_SET) == -1){
+            err(17, "lseek");
+        }
+        if (read(data, &toWrite, sizeof(uint32_t)) != sizeof(uint32_t)){
+            err(18, "read");
+        }
+        if (toWrite == 0){
+            continue;
+        }
+        if (lseek(out, 8 + listVal*8, SEEK_SET) == -1){
+            err(19, "lseek");
+        }
+        if (write(out, &toWrite, sizeof(toWrite)) != sizeof(toWrite)){
+            err(20, "write");
+        }
+    }
+    if (lseek(out, 0, SEEK_SET) == -1){
+        err(21, "lseek");
+    }
+    if (write(out, &magic, sizeof(magic)) != sizeof(magic)){
+        err(22, "write");
+    }
+    filetype = 3;
+    if (write(out, &filetype, sizeof(filetype)) != sizeof(filetype)){
+        err(23, "write");
+    }
+    if (write(out, &outCount, sizeof(count)) != sizeof(count)){
+        err(24, "write");
+    }
+    close(list);
+    close(data);
+    close(out);
+    exit(0);
+}
+
+Зад. 78 2022-SE-01
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <err.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdbool.h>
+struct comparation{
+    uint16_t type;
+    uint16_t reserved1;
+    uint16_t reserved2;
+    uint16_t reserved3;
+    uint32_t offset1;
+    uint32_t offset2;
+} compar;
+int main(const int argc, char* argv[])
+{
+    if (argc != 3){
+        errx(1, "input");
+    }
+    int data, comp;
+    if ((data = open(argv[1], O_RDWR)) == -1){
+        err(2, "open");
+    }
+    if ((comp = open(argv[2], O_RDONLY)) == -1){
+        err(3, "open");
+    }
+    uint32_t dataMagic;
+    if (read(data, &dataMagic, sizeof(dataMagic)) != sizeof(dataMagic)){
+        err(4, "read");
+    }
+    if (dataMagic != 0x21796F4A){
+        errx(5, "wrong data magic");
+    }
+    uint32_t dataCount;
+    if (read(data, &dataCount, sizeof(dataCount)) != sizeof(dataCount)){
+        err(6, "read");
+    }
+    uint32_t magic1;
+    uint16_t magic2;
+    if (read(comp, &magic1, sizeof(magic1)) != sizeof(magic1)){
+        err(7, "read");
+    }
+    if (magic1 != 0xAFBC7A37){
+        errx(8, "wrong comp magic1");
+    }
+    if (read(comp, &magic2, sizeof(magic2)) != sizeof(magic2)){
+        err(9, "read");
+    }
+    if (magic2 != 0x1C27){
+        errx(10, "wrong comp magic2");
+    }
+    if (lseek(comp, 8, SEEK_SET) == -1){
+        err(11, "lseek");
+    }
+    uint64_t compCount;
+    if (read(comp, &compCount, sizeof(compCount)) != sizeof(compCount)){
+        err(12, "read");
+    };
+    for (uint64_t i=0; i<compCount; i++){
+        if (read(comp, &compar, sizeof(compar)) != sizeof(compar)){
+            err(13, "read");
+        }
+        if (dataCount < compar.offset1 || dataCount < compar.offset2){
+           errx(15, "wrong offset");
+        }
+        uint64_t first, second;
+        if (lseek(data, 8+8*compar.offset1, SEEK_SET) == -1){
+            err(14, "lseek");
+        }
+        if (read(data, &first, sizeof(first)) != sizeof(first)){
+            err(16, "read");
+        }
+        if (lseek(data, 8+8*compar.offset2, SEEK_SET) == -1){
+            err(17, "lseek");
+        }
+        if (read(data, &second, sizeof(second)) != sizeof(second)){
+            err(18, "read");
+        }
+        if (compar.type == 0){
+            if (first > second){
+                lseek(data, 8+8*compar.offset1, SEEK_SET);
+                write(data, &second, sizeof(second));
+                lseek(data, 8+8*compar.offset2, SEEK_SET);
+                write(data, &first, sizeof(first));
+            }
+        } else {
+            if (first < second){
+                lseek(data, 8+8*compar.offset1, SEEK_SET);
+                write(data, &second, sizeof(second));
+                lseek(data, 8+8*compar.offset2, SEEK_SET);
+                write(data, &first, sizeof(first));
+            }
+        }
+    }
+    close(data);
+    close(comp);
+    exit(0);
+}
+
+Зад. 79 2023-IN-01
+
+
+-------------------------------------------------
+
+Зад. 60 2020-SE-02
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdint.h>
+#include <err.h>
+#include <limits.h>
+#include <stdio.h>
+
+#define MASKSIZE = 8;
+
+int main(int argc, char* argv[]){
+	if(argc != 4) {
+		errx(4, "Usage: %s input.scl input.sdl output", argv[0]);
+	}
+
+	int fd1;
+
+	if((fd1 = open(argv[1], O_RDONLY)) == -1) {
+		errx(5, "File1");
+	}
+
+	int fd2;
+	if((fd1 = open(argv[2], O_RDONLY)) == -1) {
+		errx(6, "File2");
+	}
+
+	struct stat st_data;
+	struct stat std_scl;
+
+	int r=0;
+	r=fstat(data, &st_data);
+	if (r == -1) {
+		err(7, "cannot stat %s", argv[2]);
+	}
+
+	r=fstat(scl, &st_scl);
+	if (r == -1) {
+		err(9, "cannot stat %s", argv[1]);
+	}
+
+	if(st_data.st_size / sizeof(uint16_t) != (long unsigned int)st_scl.st_size * CHAR_BIT) {
+		errx(8, "wrong size");
+	}
+
+	if(st_data.st_size % 2 != 0) {
+		errx(10, "odd size");
+	}
+
+	int output;
+	if((output = open(argv[3], O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR)) == -1) {
+		errx(7, "File3");
+	} 
+
+	uint8_t mask[MASKSIZE] = { 0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01 };
+	off_t pos = 0;
+	uint16_t e = 0;
+	
+	uint8_t buffer;
+	while(read(fd1, &buffer, sizeof(buffer)) == sizeof(buffer)) {
+		for(int i=0; i<MASKSIZE; i++) {
+			if ((buffer & mask[i]) > 0) {
+				r = lseek(data, pos+i*sizeof(uint16_t), SEEK_SET) {
+				if (r == -1) {
+					err(42, "cannot seek");
+				}
+			
+				if (read(data, &e, sizeof(e)) != sizeof(e)) {
+					err(43, "error");
+				}
+
+				if (write(output, &e, sizeof(e) != sizeof(e)) {
+					err(44, "error");
+				}
+			}
+		}
+		pos += (MASKSIZE*sizeof(uint16_t));
+	}
+
+	close(scl);
+	close(data);
+	close(output);
+
+	return 0;
+}
+
+Зад. 63 2021-SE-03
+/*
+	input.bin - uint16_t, little endian
+	output.h - валиден C header файл
+	
+	проверки:
+		sizeof(input.bin <= 52488*2)
+	
+	output.h {
+		#include <stdint.h>
+
+		const uint32_t arrN = sizeof(input.bin/2)
+		const uint16_t* arr = { елементи от input.bin, delimeter ',' }
+	}
+
+#include <err.h>
+#include <stdint.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdio.h>
+
+#define SIZE 52488
+
+int main(int argc, char** argv) {
+	
+	if(argc != 3)
+		errx(3, "invalid input count");
+	}
+
+	int fd;
+	int outputfd;
+
+	if((fd = open(argv[1], O_RDONLY)) == -1) {
+		err(4, "open");
+	}
+
+	if((outputfd = open(argv[2], O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR)) == -1) {
+		err(5, "open output");
+	}
+
+	struct stat a;
+	
+	if(fstat(fd, &a) == -1) {
+		err(6, "stat")'
+	}
+
+	if((long unsigned int)a.st_size > SIZE*sizeof(uint16_t)) {
+		errx(7, "input size");
+	}
+
+	if((long unsigned int)a.st_size % SIZE*sizeof(uint16_t) != 0) {
+		errx(8, "input size");
+	}
+
+	const char* LINE1 = "#include <stdint.h>\n";
+	const char* LINE2 = "const uint16_t arr[] = {\n";
+	const char* LINE3 = "};\n";
+	const char* LINE4 = "const uint32_t arrN = $ %d;\n";
+
+	dprintf(outputfd, LINE1);
+	dprintf(outputfd, LINE2);
+
+	uint16_t buffer;
+
+	int r = 0;
+	while((r = read(fd, &buffer, sizeof(buffer))) == sizeof(buffer)) {
+
+		dprintf(outputfd, "0x%04x,\n", buffer);
+	}
+
+	if (r != 0) {
+		err(1, "boo");
+	}
+
+	dprintf(outputfd, LINE3);
+	dprintf(outputfd, LINE4, a.st_size/sizeof(uint16_t));
+
+	close(fd);
+	close(outputfd);
+
+	return 0;
+}

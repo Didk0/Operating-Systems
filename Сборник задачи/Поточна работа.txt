@@ -1,0 +1,71 @@
+Зад.1 2016-SE-01
+vi philip-j-fry.txt
+echo "Броят на търсените редове е $(egrep [24680] philip-j-fry.txt | egrep -v [a-w] | wc -l)"
+
+Зад.2 2017-IN-01
+I начин:
+find / -user $(whoami) 2>/dev/null | wc -l
+II начин:
+find / -uid $(id -u) 2>/dev/null | wc -l
+
+Зад.3 2017-IN-02
+а)
+find . -size 0c | xargs rm
+б)
+find . -type f -printf "%s %p\n" | sort -n | tail -n 5 | cut -d ' ' -f 2 | xargs rm
+
+Зад.4 2017-IN-03
+I начин:
+cat /etc/passwd | egrep 'Inf' | cut -d ':' -f 1-5 | cut -d ',' -f 1 | egrep 'а$' | cut -c 3-4 | sort -n | uniq -c | sort -n | tail -n 1 
+II начин (това ще работи за /etc/passwd):
+cat /etc/passwd | cut -d ':' -f 1-5 | egrep ',И$' | cut -d ',' -f 1 | cut -c 3-4 | sort -n | uniq -c | sort -n | tail -n 1
+III начин (грешен):
+awk -F ':' '$4==502 {print $0}' /etc/passwd | cut -d ',' -f 1 | cut -d ':' -f -5 | egrep 'a$' | cut -c 3,4 | sort -n -k 1,1 | tail -n 1
+IV начин:
+egrep '^[^:]+:[^:]+:[^:]+:502' /etc/passwd | cut -d ',' -f 1 | cut -d ':' -f -5 | egrep 'a$' | cut -c 3-4 | sort -n | uniq -c | sort -n | tail -n 1
+	^s[0-9]+:x:[0-9]+:502:
+
+Зад.5 2017-SE-01
+find . -printf '%n %p\n' | sort -n -r | head -n 5 | cut -d ' ' -f 2
+
+Зад.6 2018-SE-01
+find ~ -type d | xargs chmod 755
+
+Зад.7 2018-SE-02
+find ~pesho -type f -printf "%T@ %i %n\n" 2>/dev/null | awk '$3 > 1' | sort -k 1,1 -n | tail -n 1 | cut -d ' ' -f 2
+
+Зад.8 2018-SE-03
+I начин:
+grep "^s[0-9]+:x:[0-9]+:$(sort -n -k 3,3 -t ':' /etc/passwd | head -n 201 | tail -n 1 | cut -d ':' -f 4):" /etc/passwd | cut -c 2- | sort -n -t ':' -k 1,1 | cut -d ':' -f 5,6 | sed -E 's/,.*:/:/'
+			    (може и така) | sed -E 's/(^[a-Z ]+).*:(.+)/\1:\2/'
+II начин:
+grep "^s[0-9]+:x:[0-9]+:$(sort -n -k 3,3 -t ':' /etc/passwd | head -n 201 | tail -n 1 | cut -d ':' -f 4):" /etc/passwd | cut -c 2- | sort -n -t ':' -k 1,1 | awk -F ':' '{print $6":"$5}' | cut -d ',' -f 1 | awk -F ':' {print $2":"$1}
+
+Зад.9 2019-SE-01
+egrep "^[^;]+;$(tail -n +2 planets.txt | sort -n -t ';' -k 3,3 | tail -n 1 | cut -d ';' -f 2);" planets.txt | sort -t ';' -n -k 3,3 | head -n 1 | awk -F ';' '{print $1"\t"$4}'
+
+Зад.10 2019-SE-02
+I начин:
+awk -F ":" '{print $1":"$6":"$5}' /etc/passwd | cut -d "," -f 1 | awk -F ":" '$2 ~ /\/home\/SI\// {print $2}' | xargs stat -c "%n %Z" | awk '$2 > 1669396735 && $2 < 1674484231' | cut -d " " -f 1 | xargs -I {} awk -F ":" '$6 == "{}" {print $1"\t"$5}' /etc/passwd
+II начин:
+egrep "/home/SI" /etc/passwd | cut -d ':' -f6 | xargs -I {} find {} -maxdepth 0 -printf "%C@ %p\n" | awk '$1 > 1669396735 && $1 < 1674484231' | cut -d ' ' -f2 | xargs -I {} egrep "{}" /etc/passwd | awk -F ':' '{print $1"\t"$5}'
+
+Зад.11 2019-SE-03
+I начин:
+find ~velin -type f -inum $(find ~velin -type f -printf '%i %T@\n' | sort -n -k 2,2 | tail -n 1 | cut -d ' ' -f 1) | tr -dc '/\n' | sort | head -n 1 | tr -d '\n' | wc -c
+II начин:
+find ~velin -type f -inum $(find ~velin -type f -printf '%i %T@\n' | sort -n -k 2,2 | tail -n 1 | cut -d ' ' -f 1) | tr -dc '/\n' | sort | head -n 1 | grep -o '.' | wc -l
+III начин:
+find ~velin -type f -inum $(find ~velin -type f -printf "%i %T@\n" | sort -n -r -k2,2 | head -n 1 | cut -d ' ' -f1) -printf "%d\n" | sort -n | head -n 1
+
+Зад. 12 2020-SE-01
+find ~ -type f -perm 644 | xargs chmod 664
+
+Зад. 13 2020-SE-02
+I начин:
+egrep "$(tail -n +2 test.txt | egrep 'Failure' | sort -t '|' -k 2,2 | cut -d '|' -f 2,3 | uniq -c | sort -n -k 1,1 | tail -n 1 | cut -d '|' -f 1 | rev | cut -d ' ' -f 1 | rev)" test.txt | sort -n -k 1,1 -t '|' | tail -n 1 | awk -F '|' '{print $3":"$4}'
+II начин:
+egrep $(tail -n +2 test.txt | cut -d '|' -f 2,3 | sort -k1,1 | awk -F '|' ' $1!=res {curr=0} $2=="Failure" {curr+=1} curr>max {max=curr;res=$1} END {print res}') test.txt |sort -n -k1,1 -t '|' | tail -n 1 | awk -F '|' '{print $3":"$4}'
+
+Зад. 14 2022-CE-01
+find ~ -maxdepth 1 -type f -user $(whoami) 2>/dev/null | xargs chmod 664 1>/dev/null

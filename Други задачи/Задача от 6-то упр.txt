@@ -1,0 +1,1 @@
+egrep '(SCAN name|IPv4 VIP)' scan.txt | cut -d ',' -f 1 | awk '/name/ {pesho=$3} /IPv4/ {print pesho" "$5}'
